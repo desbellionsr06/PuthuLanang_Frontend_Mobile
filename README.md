@@ -1,31 +1,33 @@
-# Puthu Lanang Flutter Native
+# 📱 Puthu Lanang - Mobile App (Flutter)
 
-Versi native Flutter dari mobile UI Puthu Lanang. Desain mengacu pada frontend Next.js di project asli.
+Repositori ini berisi aplikasi pelanggan Puthu Lanang berbasis mobile. 
+⚠️ **Syarat Utama:** Pastikan repositori **Backend** sudah dijalankan terlebih dahulu di Port 5000 agar aplikasi bisa terhubung ke database.
 
-## 1. Buat project Flutter shell
+## 🚀 Cara Setup & Menjalankan (Lokal)
 
-Jika folder ini dibuat sebagai source manual, jalankan `flutter create .` di folder ini untuk menghasilkan folder platform/default Flutter. Jangan menimpa `lib/`, `assets/`, dan `pubspec.yaml` setelah itu.
-
-## 2. Jalankan backend
-
-Masuk ke `PuthuLanang_Backend` dari project asli:
-
+**1. Clone Repositori**
+Buka terminal baru dan jalankan perintah berikut:
 ```bash
-npm install
-npm run dev
+git clone [https://github.com/desbellionsr06/PuthuLanang_Frontend_Mobile.git](https://github.com/desbellionsr06/PuthuLanang_Frontend_Mobile.git)
 ```
-
-## 3. API Android
-
-Emulator Android memakai `http://10.0.2.2:5000/api`.
-Untuk HP fisik, ubah `baseUrl` di `lib/services/api_service.dart` menjadi IP LAN PC, misalnya `http://192.168.1.10:5000/api`.
-
-## 4. Flutter
-
+**2. Masuk ke Folder Proyek**
+Pastikan terminal Anda masuk ke lokasi yang terdapat file pubspec.yaml:
 ```bash
+cd PuthuLanang_Frontend_Mobile
+
+# CATATAN: Jika setelah di-clone file pubspec.yaml berada di dalam folder lagi, silakan 'cd' sekali lagi ke folder tersebut sebelum lanjut ke langkah 3.
+```
+**3. Instal Dependencies**
+```Bash
 flutter pub get
-flutter run
-flutter build apk --release
 ```
+**4. Pengecekan URL API (Opsional)**
 
-Fitur yang sudah disiapkan: login/register, home, menu, cart, smart takeaway, order ticket + QR, story heritage, profile, local session, dan koneksi ke backend Express yang sudah ada.
+Pastikan URL konfigurasi API (biasanya di file api_service.dart) diarahkan ke port backend lokal:
+Menggunakan Emulator Android: http://10.0.2.2:5000/api
+Menggunakan iOS Simulator: http://localhost:5000/api
+
+**5. Jalankan Aplikasi di Emulator**
+Pastikan emulator (Android/iOS) sudah menyala di perangkat Anda, lalu jalankan:
+```Bash
+flutter run
