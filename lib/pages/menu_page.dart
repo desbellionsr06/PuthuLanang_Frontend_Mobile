@@ -48,6 +48,7 @@ class _MenuPageState extends State<MenuPage> {
       query: customPrompt ?? aiPromptController.text.trim(),
       preference: preference ?? '',
       budget: budget,
+      token: widget.state.jwtToken,
     );
     if (mounted) {
       setState(() {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item.dart';
 import '../models/menu_item.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class AppState extends ChangeNotifier {
   int tab = 0;
@@ -24,6 +26,14 @@ class AppState extends ChangeNotifier {
 
   // Riwayat transaksi (terbaru di urutan pertama)
   List<Map<String, dynamic>> orderHistory = [];
+
+  // Notifikasi real-time dari backend (status pesanan & verifikasi AI)
+  List<Map<String, dynamic>> notifications = [];
+  final Set<int> _shownNotifIds = {};
+  Timer? _notifTimer;
+
+  int get unreadNotificationCount =>
+      notifications.where((n) => (n['is_read'] ?? 0) == 0).length;
 
   bool get loggedIn => token != null;
 
@@ -94,6 +104,9 @@ class AppState extends ChangeNotifier {
     }
 
     _loadHistory(prefs);
+    if (jwtToken != null) {
+      unawaited(_startNotificationSync());
+    }
     notifyListeners();
   }
 
@@ -106,6 +119,7 @@ class AppState extends ChangeNotifier {
     String p,
     String pass, {
     required int userId,
+    String? jwtToken,
   }) async {
     final cleanName = name.trim();
     final cleanPhone = p.trim();
@@ -126,6 +140,7 @@ class AppState extends ChangeNotifier {
       name: cleanName,
       phone: cleanPhone,
       token: 'server-token-$cleanPhone',
+      jwtToken: jwtToken,
     );
   }
 
@@ -190,6 +205,57 @@ class AppState extends ChangeNotifier {
     }
 
     _loadHistory(prefs);
+    if (jwtToken != null) {
+      unawaited(_startNotificationSync());
+    }
+    notifyListeners();
+  }
+
+  Future<void> _startNotificationSync() async {
+    final jwt = jwtToken;
+    if (jwt == null || jwt.isEmpty) return;
+
+    await NotificationService.initialize();
+    final deviceToken = 'puthu-mobile-device-${userId ?? 0}';
+    await ApiService.syncFcmToken(token: jwt, fcmToken: deviceToken);
+    await refreshNotifications();
+
+    _notifTimer?.cancel();
+    _notifTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      unawaited(refreshNotifications());
+    });
+  }
+
+  Future<void> refreshNotifications() async {
+    final jwt = jwtToken;
+    if (jwt == null || jwt.isEmpty) return;
+
+    try {
+      final rows = await ApiService.getMyNotifications(token: jwt);
+      for (final item in rows) {
+        final id = int.tryParse('${item['id']}');
+        final isRead = (item['is_read'] ?? 0) == 1;
+        if (id != null && !isRead && !_shownNotifIds.contains(id)) {
+          _shownNotifIds.add(id);
+          await NotificationService.showLocalNotification(
+            id: id,
+            title: '${item['title'] ?? 'Pembaruan Puthu Lanang'}',
+            body: '${item['body'] ?? ''}',
+          );
+        }
+      }
+      notifications = rows;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final jwt = jwtToken;
+    if (jwt == null || jwt.isEmpty) return;
+    await ApiService.markNotificationsRead(token: jwt);
+    notifications = notifications
+        .map((n) => {...n, 'is_read': 1})
+        .toList();
     notifyListeners();
   }
 
@@ -206,6 +272,11 @@ class AppState extends ChangeNotifier {
     await prefs.remove('name');
     await prefs.remove('phone');
     await prefs.remove('login_timestamp');
+
+    _notifTimer?.cancel();
+    _notifTimer = null;
+    notifications = [];
+    _shownNotifIds.clear();
 
     userId = null;
     token = null;

@@ -144,7 +144,8 @@ class _AuthPageState extends State<AuthPage> {
       );
 
       if (register) {
-        final userId = int.tryParse('${(verifyResult['data'] as Map?)?['id']}');
+        final dataMap = verifyResult['data'] as Map?;
+        final userId = int.tryParse('${dataMap?['id']}');
         if (userId == null) {
           throw Exception('Data akun dari server tidak valid.');
         }
@@ -153,6 +154,7 @@ class _AuthPageState extends State<AuthPage> {
           phone.text.trim(),
           pass.text.trim(),
           userId: userId,
+          jwtToken: dataMap?['jwt_token']?.toString(),
         );
       }
 

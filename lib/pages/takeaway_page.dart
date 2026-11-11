@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
 import '../utils/validators.dart';
 
 class TakeawayPage extends StatefulWidget {
@@ -48,6 +49,8 @@ class _TakeawayPageState extends State<TakeawayPage> {
 
   Map<String, dynamic>? queueEstimate;
   bool loadingQueue = false;
+  double? gpsDistanceKm;
+  bool detectingGps = false;
 
   @override
   void initState() {
@@ -90,12 +93,36 @@ class _TakeawayPageState extends State<TakeawayPage> {
       outlet: selectedOutlet,
       day: selectedDate,
       timeSlot: selectedTime,
+      token: widget.state.jwtToken,
+      distanceKm: gpsDistanceKm,
     );
     if (mounted) {
       setState(() {
         queueEstimate = res;
         loadingQueue = false;
       });
+    }
+  }
+
+  Future<void> _detectDistanceViaGps() async {
+    setState(() => detectingGps = true);
+    try {
+      final loc = await LocationService.getCurrentLocationToOutlet();
+      if (mounted) {
+        setState(() => gpsDistanceKm = loc.distanceKm);
+        await fetchQueueEstimate();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => detectingGps = false);
     }
   }
 
@@ -234,8 +261,36 @@ class _TakeawayPageState extends State<TakeawayPage> {
                         child: const Text('Buka • Ramai Lancar', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 10)),
                       ),
                       const SizedBox(width: 8),
-                      const Text('Estimasi Antrean: ~12 Mnt', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                      Flexible(
+                        child: Text(
+                          gpsDistanceKm != null
+                              ? 'Jarak GPS: $gpsDistanceKm km'
+                              : 'Estimasi Antrean: ~12 Mnt',
+                          style: const TextStyle(color: Colors.grey, fontSize: 10),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 26),
+                    child: OutlinedButton.icon(
+                      onPressed: detectingGps ? null : _detectDistanceViaGps,
+                      icon: const Icon(Icons.my_location, size: 15, color: gold),
+                      label: Text(
+                        detectingGps
+                            ? 'Mengukur Jarak GPS...'
+                            : (gpsDistanceKm != null
+                                ? 'Perbarui Jarak GPS ($gpsDistanceKm km)'
+                                : 'Input Cepat Jarak via GPS'),
+                        style: const TextStyle(color: cream, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: border),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -583,16 +638,20 @@ class _TakeawayPageState extends State<TakeawayPage> {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  confidence,
-                  style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    confidence,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../widgets/app_card.dart';
+import 'ai_insight_page.dart';
+import 'notifications_page.dart';
 
 class HomePage extends StatefulWidget {
   final AppState state;
@@ -75,18 +77,54 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: brown,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: border),
-                ),
-                child: const Icon(
-                  Icons.lock_outline,
-                  color: muted,
-                  size: 18,
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NotificationsPage(state: widget.state),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: brown,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: border),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_none,
+                        color: gold,
+                        size: 20,
+                      ),
+                    ),
+                    if (widget.state.unreadNotificationCount > 0)
+                      Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '${widget.state.unreadNotificationCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -209,6 +247,52 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Kartu Pintasan Cepat Insight AI + GPS
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AiInsightPage(state: widget.state)),
+            );
+          },
+          borderRadius: BorderRadius.circular(18),
+          child: AppCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: green.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.auto_awesome, color: gold, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Insight Antrean & Menu AI (GPS)',
+                        style: TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      Text(
+                        'Cek estimasi antrean berbasis lokasi GPS & saran Gemini AI',
+                        style: TextStyle(color: muted, fontSize: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: gold),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),

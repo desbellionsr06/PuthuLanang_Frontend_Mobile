@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../widgets/app_card.dart';
+import 'ai_insight_page.dart';
+import 'notifications_page.dart';
 import 'orders_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -194,47 +196,56 @@ class _ProfilePageState extends State<ProfilePage> {
 
         const SizedBox(height: 12),
 
-        // AI SMART QUEUE ESTIMATOR
-        AppCard(
-          child: Column(
-            children: const [
-              Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: gold,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'AI Smart Queue Estimator',
-                      style: TextStyle(
-                        color: cream,
-                        fontWeight: FontWeight.bold,
+        // AI SMART QUEUE ESTIMATOR (bisa diklik menuju Insight AI)
+        InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => AiInsightPage(state: widget.state)),
+          ),
+          borderRadius: BorderRadius.circular(18),
+          child: AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: gold),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'AI Smart Queue & Menu Insight',
+                        style: TextStyle(color: cream, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Rencana fitur AI untuk memperkirakan waktu tunggu antrean gerai pada jam ramai.',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  height: 1.4,
+                    Icon(Icons.chevron_right, color: gold, size: 18),
+                  ],
                 ),
-              ),
-            ],
+                SizedBox(height: 8),
+                Text(
+                  'Cek prediksi antrean berbasis lokasi GPS & kurasi menu Gemini AI.',
+                  style: TextStyle(color: muted, fontSize: 11, height: 1.4),
+                ),
+              ],
+            ),
           ),
         ),
 
         const SizedBox(height: 12),
 
-        // MENU INTERAKTIF (Riwayat, Kupon, Ketentuan)
+        // MENU INTERAKTIF (Riwayat, Notifikasi, Kupon, Ketentuan)
         AppCard(
           child: Column(
             children: [
+              _row(
+                Icons.notifications_none,
+                'Notifikasi Gerai (${widget.state.unreadNotificationCount} baru)',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NotificationsPage(state: widget.state),
+                  ),
+                ),
+              ),
               _row(
                 Icons.history,
                 'Riwayat Transaksi',

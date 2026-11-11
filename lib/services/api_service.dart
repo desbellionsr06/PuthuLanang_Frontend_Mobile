@@ -226,35 +226,46 @@ class ApiService {
     return body;
   }
 
-  // AI 1: Smart Queue Estimator
+  // AI 1: Smart Queue Estimator (terautentikasi JWT + mendukung jarak GPS)
   static Future<Map<String, dynamic>> getAiQueueEstimate({
     required String outlet,
     required String day,
     required String timeSlot,
+    String? token,
+    double? distanceKm,
   }) async {
     try {
-      final r = await http.post(
-        Uri.parse('$baseUrl/ai/queue-estimator'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'outlet': outlet,
-          'day': day,
-          'timeSlot': timeSlot,
-        }),
-      ).timeout(const Duration(seconds: 4));
+      final headers = (token != null && token.isNotEmpty)
+          ? _authHeaders(token)
+          : {'Content-Type': 'application/json'};
+
+      final payload = <String, dynamic>{
+        'outlet': outlet,
+        'day': day,
+        'timeSlot': timeSlot,
+        if (distanceKm != null) 'distanceKm': distanceKm,
+      };
+
+      final r = await http
+          .post(
+            Uri.parse('$baseUrl/ai/queue-estimator'),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 8));
 
       if (r.statusCode == 200) {
         return jsonDecode(r.body) as Map<String, dynamic>;
       }
     } catch (_) {
-      // Fallback lokal jika backend offline
+      // Fallback lokal jika backend offline / belum login
     }
 
     // Perhitungan cerdas offline
     final isCelaket = outlet.toLowerCase().contains('celaket');
     final isPeak = timeSlot.startsWith('17:00') || timeSlot.startsWith('17:30');
     final isEarly = timeSlot.startsWith('16:00');
-    
+
     int minWait = isEarly ? 4 : (isPeak ? 14 : 8);
     int maxWait = isEarly ? 7 : (isPeak ? 20 : 13);
     if (!isCelaket) {
@@ -265,6 +276,7 @@ class ApiService {
     return {
       'status': 'success',
       'outlet': outlet,
+      'verification_status': 'pending',
       'crowd_level': isEarly ? 'Antrean Pendek' : (isPeak ? 'Jam Sibuk' : 'Ramai Lancar'),
       'crowd_color': isEarly ? 'green' : (isPeak ? 'orange' : 'gold'),
       'estimated_wait': '~$minWait - $maxWait Mnt',
@@ -274,26 +286,35 @@ class ApiService {
       'confidence_score': '95% Akurasi Prediktif AI',
       'tips': isEarly
           ? 'Kondisi gerai sangat kondusif untuk pengambilan kilat.'
-          : (isPeak ? 'Jam ramai sepulang kerja, silakan tiba 5 menit sebelum slot berakhir.' : 'Waktu pas, pesanan baru selesai dikukus saat Anda tiba.')
+          : (isPeak
+              ? 'Jam ramai sepulang kerja, silakan tiba 5 menit sebelum slot berakhir.'
+              : 'Waktu pas, pesanan baru selesai dikukus saat Anda tiba.'),
     };
   }
 
-  // AI 2: Smart Puthu Recommender
+  // AI 2: Smart Puthu Recommender (terautentikasi JWT)
   static Future<Map<String, dynamic>> getAiRecommendation({
     String query = '',
     int? budget,
     String preference = '',
+    String? token,
   }) async {
     try {
-      final r = await http.post(
-        Uri.parse('$baseUrl/ai/recommendation'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'query': query,
-          'budget': budget,
-          'preference': preference,
-        }),
-      ).timeout(const Duration(seconds: 5));
+      final headers = (token != null && token.isNotEmpty)
+          ? _authHeaders(token)
+          : {'Content-Type': 'application/json'};
+
+      final r = await http
+          .post(
+            Uri.parse('$baseUrl/ai/recommendation'),
+            headers: headers,
+            body: jsonEncode({
+              'query': query,
+              'budget': budget,
+              'preference': preference,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
 
       if (r.statusCode == 200) {
         return jsonDecode(r.body) as Map<String, dynamic>;
@@ -339,5 +360,50 @@ class ApiService {
         {'id': 'puthu-01', 'nama': 'Puthu', 'harga': 18000, 'qty': 1, 'alasan': 'Puthu bambu legendaris resep asli 1935'}
       ]
     };
+  }
+
+  // ====================================================================
+  // Push Notification Sync (Backend <-> Flutter)
+  // ====================================================================
+
+  static Future<void> syncFcmToken({
+    required String token,
+    required String fcmToken,
+  }) async {
+    try {
+      await http
+          .patch(
+            Uri.parse('$baseUrl/auth/fcm-token'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'fcm_token': fcmToken}),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getMyNotifications({
+    required String token,
+  }) async {
+    final r = await http
+        .get(
+          Uri.parse('$baseUrl/notifications/me'),
+          headers: _authHeaders(token),
+        )
+        .timeout(const Duration(seconds: 6));
+    if (r.statusCode != 200) return [];
+    final body = jsonDecode(r.body) as Map<String, dynamic>;
+    final list = (body['data'] as List<dynamic>?) ?? const [];
+    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  static Future<void> markNotificationsRead({required String token}) async {
+    try {
+      await http
+          .patch(
+            Uri.parse('$baseUrl/notifications/read-all'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 }
