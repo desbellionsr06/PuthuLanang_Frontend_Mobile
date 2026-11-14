@@ -26,6 +26,7 @@ class _AiInsightPageState extends State<AiInsightPage> {
   String _selectedSlot = '17:00 - 17:30';
   LocationResult? _locationResult;
   Map<String, dynamic>? _queueInsight;
+  Map<String, dynamic>? _verifiedInsight;
   Map<String, dynamic>? _menuInsight;
   String? _gpsError;
   bool _loadingQueue = false;
@@ -34,7 +35,21 @@ class _AiInsightPageState extends State<AiInsightPage> {
   @override
   void initState() {
     super.initState();
+    _loadLatestVerifiedInsight();
     _analyzeQueueWithGps();
+  }
+
+  Future<void> _loadLatestVerifiedInsight() async {
+    try {
+      final verified = await ApiService.getLatestVerifiedAiInsight(
+        featureType: 'queue_estimator',
+      );
+      if (mounted) {
+        setState(() {
+          _verifiedInsight = verified;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _analyzeQueueWithGps() async {
@@ -52,19 +67,32 @@ class _AiInsightPageState extends State<AiInsightPage> {
       _gpsError = e.toString().replaceFirst('Exception: ', '');
     }
 
-    final result = await ApiService.getAiQueueEstimate(
-      outlet: 'Gerai Pusat Celaket',
-      day: 'Hari Ini',
-      timeSlot: _selectedSlot,
-      token: widget.state.jwtToken,
-      distanceKm: distanceKm,
-    );
+    try {
+      final result = await ApiService.getAiQueueEstimate(
+        outlet: 'Gerai Pusat Celaket',
+        day: 'Hari Ini',
+        timeSlot: _selectedSlot,
+        token: widget.state.jwtToken,
+        distanceKm: distanceKm,
+      );
 
-    if (mounted) {
-      setState(() {
-        _queueInsight = result;
-        _loadingQueue = false;
-      });
+      if (mounted) {
+        setState(() {
+          _queueInsight = result;
+          if (result['verification_status'] == 'verified') {
+            _verifiedInsight = {
+              'validated_output': result,
+              'verification_notes': 'Tervalidasi Manajer Operasional',
+              'verification_status': 'verified',
+            };
+          }
+          _loadingQueue = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingQueue = false);
+      }
     }
   }
 
@@ -118,13 +146,28 @@ class _AiInsightPageState extends State<AiInsightPage> {
 
   @override
   Widget build(BuildContext context) {
-    final crowdLevel = _queueInsight?['crowd_level']?.toString() ?? '-';
-    final estWait = _queueInsight?['estimated_wait']?.toString() ?? '-';
-    final crowdColorStr = _queueInsight?['crowd_color']?.toString() ?? 'gold';
-    final tips = _queueInsight?['tips']?.toString() ?? '';
-    final confidence = _queueInsight?['confidence_score']?.toString() ?? 'Gemini AI';
-    final verification = _queueInsight?['verification_status']?.toString() ?? 'pending';
-    final peakPct = (_queueInsight?['peak_percentage'] as num?)?.toDouble() ?? 60.0;
+    final verifiedRaw = _verifiedInsight?['validated_output'];
+    final Map<String, dynamic>? verifiedData = (verifiedRaw is Map<String, dynamic>)
+        ? verifiedRaw
+        : (_queueInsight != null && _queueInsight!['verification_status'] == 'verified'
+            ? _queueInsight
+            : null);
+
+    final bool isPendingReview =
+        _queueInsight != null && _queueInsight!['verification_status'] == 'pending';
+    final String? managerNotes = _verifiedInsight?['verification_notes']?.toString();
+
+    final crowdLevel = verifiedData?['crowd_level']?.toString() ?? 'Ramai Lancar';
+    final estWait = verifiedData?['estimated_wait']?.toString() ??
+        (verifiedData != null
+            ? '~${verifiedData['wait_time_min'] ?? 8} - ${verifiedData['wait_time_max'] ?? 15} Mnt'
+            : '-');
+    final crowdColorStr = verifiedData?['crowd_color']?.toString() ?? 'gold';
+    final tips = verifiedData?['tips']?.toString() ??
+        'Kondisi antrean gerai telah tervalidasi oleh tim pemantau operasional dapur Celaket.';
+    final confidence =
+        verifiedData?['confidence_score']?.toString() ?? 'Gemini AI (Tervalidasi Manajer)';
+    final peakPct = (verifiedData?['peak_percentage'] as num?)?.toDouble() ?? 50.0;
 
     Color statusColor = gold;
     if (crowdColorStr == 'green') statusColor = const Color(0xFF4CAF50);
@@ -223,8 +266,43 @@ class _AiInsightPageState extends State<AiInsightPage> {
 
           const SizedBox(height: 14),
 
-          // --- HASIL INSIGHT ANTREAN AI ---
-          if (_queueInsight != null)
+          // --- BANNER INFORMASI STATUS AUDIT ---
+          if (isPendingReview) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: gold.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.pending_actions, color: gold, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Estimasi Baru Menunggu Verifikasi Web Admin',
+                          style: TextStyle(color: gold, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Kalkulasi GPS Anda telah dicatat. Kebijakan sistem: aplikasi hanya menampilkan data antrean resmi yang telah disetujui Manajer Gerai.',
+                          style: TextStyle(color: cream.withValues(alpha: 0.85), fontSize: 11, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // --- HASIL INSIGHT ANTREAN AI (HANYA YANG TERVALIDASI MANAJER) ---
+          if (verifiedData != null)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -237,26 +315,24 @@ class _AiInsightPageState extends State<AiInsightPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.auto_awesome, color: statusColor, size: 18),
+                      const Icon(Icons.verified, color: Color(0xFF81C784), size: 18),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'Insight Antrean Gemini AI',
+                          'Insight Antrean Tervalidasi',
                           style: TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: verification == 'verified'
-                              ? green.withValues(alpha: 0.25)
-                              : gold.withValues(alpha: 0.2),
+                          color: green.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          verification == 'verified' ? 'Terverifikasi Manajer' : 'Menunggu Review',
+                        child: const Text(
+                          'Disetujui Manajer',
                           style: TextStyle(
-                            color: verification == 'verified' ? const Color(0xFF81C784) : gold,
+                            color: Color(0xFF81C784),
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -271,7 +347,7 @@ class _AiInsightPageState extends State<AiInsightPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Perkiraan Tunggu', style: TextStyle(color: muted, fontSize: 11)),
+                          const Text('Perkiraan Tunggu Resmi', style: TextStyle(color: muted, fontSize: 11)),
                           Text(
                             estWait,
                             style: const TextStyle(color: cream, fontSize: 20, fontWeight: FontWeight.w900),
@@ -329,6 +405,51 @@ class _AiInsightPageState extends State<AiInsightPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  if (managerNotes != null && managerNotes.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: green.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.shield_outlined, color: Color(0xFF81C784), size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Catatan Audit Manajer: $managerNotes',
+                              style: const TextStyle(color: cream, fontSize: 11, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: brown2,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: border),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: muted, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Belum ada hasil estimasi yang disetujui Manajer untuk gerai Celaket saat ini. Notifikasi akan masuk otomatis begitu data diverifikasi di Web Admin.',
+                      style: TextStyle(color: muted, fontSize: 12, height: 1.4),
                     ),
                   ),
                 ],

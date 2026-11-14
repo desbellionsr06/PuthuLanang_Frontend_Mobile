@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'core/di/injection.dart';
+import 'core/theme/app_theme.dart';
 import 'state/app_state.dart';
 import 'pages/auth_page.dart';
 import 'pages/home_page.dart';
@@ -9,16 +12,16 @@ import 'pages/story_page.dart';
 import 'pages/ticket_page.dart';
 import 'pages/profile_page.dart';
 
-const brown = Color(0xFF17110C);
-const brown2 = Color(0xFF241913);
-const border = Color(0xFF3F2D23);
-const cream = Color(0xFFF8F4EC);
-const gold = Color.fromARGB(255, 230, 150, 22);
-const green = Color(0xFF2E7D32);
-const muted = Color(0xFFC5B8A8);
+export 'core/theme/app_theme.dart';
 
 void main() {
-  runApp(const PuthuLanangApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  setupLocator(); // Inisialisasi GetIt Dependency Injection
+  runApp(
+    const ProviderScope( // Riverpod State Management Container
+      child: PuthuLanangApp(),
+    ),
+  );
 }
 
 class PuthuLanangApp extends StatefulWidget {

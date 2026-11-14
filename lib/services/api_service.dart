@@ -292,6 +292,28 @@ class ApiService {
     };
   }
 
+  /// Mengambil hasil AI terkini yang HANYA menampilkan status 'verified' (disetujui Manajer)
+  static Future<Map<String, dynamic>?> getLatestVerifiedAiInsight({
+    String featureType = 'queue_estimator',
+  }) async {
+    try {
+      final r = await http
+          .get(
+            Uri.parse('$baseUrl/ai/verified-latest?feature_type=$featureType'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        if (body['status'] == 'success' && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // AI 2: Smart Puthu Recommender (terautentikasi JWT)
   static Future<Map<String, dynamic>> getAiRecommendation({
     String query = '',

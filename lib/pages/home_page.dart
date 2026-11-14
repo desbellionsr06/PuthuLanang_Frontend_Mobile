@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../widgets/app_card.dart';
-import 'ai_insight_page.dart';
+import '../features/ai_insight/presentation/views/ai_insight_view.dart';
 import 'notifications_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -251,12 +251,12 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 12),
 
-        // Kartu Pintasan Cepat Insight AI + GPS
+        // Kartu Pintasan Cepat Insight AI + GPS (MVVM Clean Architecture)
         InkWell(
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => AiInsightPage(state: widget.state)),
+              MaterialPageRoute(builder: (_) => AiInsightView(appState: widget.state)),
             );
           },
           borderRadius: BorderRadius.circular(18),
