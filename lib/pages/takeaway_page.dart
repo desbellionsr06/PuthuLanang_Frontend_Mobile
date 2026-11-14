@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../services/api_service.dart';
@@ -39,7 +40,8 @@ class _TakeawayPageState extends State<TakeawayPage> {
   late List<Map<String, String>> dateOptions;
   late String selectedDate;
   late String selectedIsoDate;
-  String selectedTime = '16:30 - 17:00';
+  String selectedTime = '17:30 - 18:00';
+  String selectedPaymentMethod = 'cash';
   
   final notesController = TextEditingController();
   final nameController = TextEditingController();
@@ -169,7 +171,7 @@ class _TakeawayPageState extends State<TakeawayPage> {
     }
 
     try {
-      await widget.state.submitOrder(
+      final orderResult = await widget.state.submitOrder(
         pickupTime: selectedTime,
         pickupDate: selectedIsoDate,
         notes: _couponApplied
@@ -178,7 +180,17 @@ class _TakeawayPageState extends State<TakeawayPage> {
                 : 'Kupon: $_couponCode (-${rupiah(_couponDiscount)})')
             : formattedNotes,
         discount: _discountAmount,
+        paymentMethod: selectedPaymentMethod,
       );
+
+      final redirectUrl = (orderResult['payment_url'] ?? orderResult['snap_redirect_url'])?.toString();
+      if (selectedPaymentMethod != 'cash' && redirectUrl != null && redirectUrl.isNotEmpty) {
+        final uri = Uri.parse(redirectUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -324,12 +336,14 @@ class _TakeawayPageState extends State<TakeawayPage> {
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             children: [
-              '16:00 - 16:30',
-              '16:30 - 17:00',
-              '17:00 - 17:30',
               '17:30 - 18:00',
               '18:00 - 18:30',
               '18:30 - 19:00',
+              '19:00 - 19:30',
+              '19:30 - 20:00',
+              '20:00 - 20:30',
+              '20:30 - 21:00',
+              '21:00 - 21:30',
             ].map((timeSlot) => GestureDetector(
               onTap: () {
                 setState(() => selectedTime = timeSlot);
@@ -473,6 +487,16 @@ class _TakeawayPageState extends State<TakeawayPage> {
 
           const SizedBox(height: 20),
 
+          // --- METODE PEMBAYARAN ---
+          const Text('💳 Metode Pembayaran', style: TextStyle(color: Color(0xFFE69616), fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 10),
+          _buildPaymentChoiceTile('cash', '💵 Bayar di Tempat (Kasir)', 'Bayar tunai di kasir gerai saat mengambil jajanan'),
+          const SizedBox(height: 8),
+          _buildPaymentChoiceTile('qris', '📱 QRIS (GoPay, OVO, Dana, Shopee)', 'Scan kode QR instan dari semua e-wallet & m-banking via Midtrans'),
+          const SizedBox(height: 8),
+          _buildPaymentChoiceTile('transfer', '🏦 Transfer Bank (Virtual Account)', 'BCA, BNI, BRI, Mandiri via Midtrans Snap'),
+          const SizedBox(height: 20),
+
           // --- 7. TOTAL & TOMBOL BUAT TIKET ---
           if (_couponApplied) ...[
             Row(
@@ -519,13 +543,61 @@ class _TakeawayPageState extends State<TakeawayPage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
               child: Text(
-                busy ? 'Memproses...' : 'Buat Tiket Smart Takeaway',
+                busy
+                    ? 'Memproses...'
+                    : (selectedPaymentMethod == 'cash'
+                        ? 'Buat Tiket (Bayar di Kasir)'
+                        : 'Lanjut ke Pembayaran Midtrans'),
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
           ),
           const SizedBox(height: 30),
         ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentChoiceTile(String code, String title, String subtitle) {
+    final isSelected = selectedPaymentMethod == code;
+    return GestureDetector(
+      onTap: () => setState(() => selectedPaymentMethod = code),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE69616).withValues(alpha: 0.15) : brown2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFE69616) : border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? const Color(0xFFE69616) : Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: TextStyle(color: muted, fontSize: 11)),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check_circle : Icons.radio_button_off,
+              color: isSelected ? const Color(0xFFE69616) : muted,
+              size: 22,
+            ),
+          ],
         ),
       ),
     );

@@ -207,6 +207,7 @@ class ApiService {
     required List<Map<String, dynamic>> items,
     required int total,
     String notes = '',
+    String paymentMethod = 'cash',
   }) async {
     final r = await http.post(
       Uri.parse('$baseUrl/orders'),
@@ -217,7 +218,8 @@ class ApiService {
         'pickupDate': pickupDate,
         'items': items,
         'total': total,
-        'notes': notes
+        'notes': notes,
+        'payment_method': paymentMethod,
       })
     );
     _throwIfSessionInvalid(r);

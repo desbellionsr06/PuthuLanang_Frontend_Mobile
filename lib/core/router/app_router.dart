@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/ai_insight/presentation/views/ai_insight_view.dart';
+import '../../features/checkout/presentation/views/checkout_view.dart';
 import '../../pages/auth_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/takeaway_page.dart';
@@ -26,6 +27,10 @@ GoRouter createAppRouter(AppState appState) {
       GoRoute(
         path: '/takeaway',
         builder: (context, state) => TakeawayPage(state: appState),
+      ),
+      GoRoute(
+        path: '/checkout',
+        builder: (context, state) => CheckoutView(appState: appState),
       ),
       GoRoute(
         path: '/auth',

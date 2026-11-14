@@ -517,11 +517,12 @@ class AppState extends ChangeNotifier {
   // ORDER
   // =========================
 
-  Future<void> submitOrder({
+  Future<Map<String, dynamic>> submitOrder({
     required String pickupTime,
     required String pickupDate,
     String notes = '',
     int discount = 0,
+    String paymentMethod = 'cash',
   }) async {
     final id = userId;
     final tk = token;
@@ -551,6 +552,7 @@ class AppState extends ChangeNotifier {
             .toList(),
         total: payTotal,
         notes: notes,
+        paymentMethod: paymentMethod,
       );
     } on SessionExpiredException {
       await logout();
@@ -565,6 +567,7 @@ class AppState extends ChangeNotifier {
           : notes,
       'pickup_time': data['pickup_time'] ?? pickupTime,
       'pickup_date': data['pickup_date'] ?? pickupDate,
+      'payment_method': data['payment_method'] ?? paymentMethod,
       'summary_items': data['summary_items'] ?? (summaryItems.isNotEmpty ? summaryItems : '1x Puthu / Paket Pilihan'),
     };
 
@@ -582,5 +585,6 @@ class AppState extends ChangeNotifier {
     tab = 3;
 
     notifyListeners();
+    return data;
   }
 }
