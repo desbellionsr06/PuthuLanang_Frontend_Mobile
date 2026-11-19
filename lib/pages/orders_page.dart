@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../widgets/app_card.dart';
+import 'takeaway_page.dart';
 
 /// Halaman Riwayat Transaksi.
 /// Data diambil dari backend (database) saat halaman dibuka dan saat pull-to-refresh.
@@ -62,7 +63,12 @@ class _OrdersPageState extends State<OrdersPage> {
       case 'selesai':
         return ('Selesai', green);
       case 'sedang dikukus':
+      case 'diproses':
+      case 'processing':
         return ('Sedang Dikukus', gold);
+      case 'dibatalkan':
+      case 'cancelled':
+        return ('Dibatalkan', Colors.redAccent);
       default:
         return (status, muted);
     }
@@ -183,6 +189,11 @@ class _OrdersPageState extends State<OrdersPage> {
     final total = int.tryParse('${order['total']}') ?? 0;
     final notes = order['notes']?.toString() ?? '';
 
+    final rawStatus = (order['status'] ?? '').toString().toLowerCase();
+    final isProcessing = rawStatus == 'diproses' || rawStatus == 'processing' || rawStatus == 'sedang dikukus';
+    final estMinutes = order['estimated_minutes'];
+    final estReadyAt = order['estimated_ready_at']?.toString();
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,6 +211,44 @@ class _OrdersPageState extends State<OrdersPage> {
           ),
           const SizedBox(height: 2),
           Text(_formatDateTime(order['created_at']), style: const TextStyle(color: muted, fontSize: 11)),
+          
+          // Estimasi Pemrosesan (Point 6)
+          if (isProcessing) ...[
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: gold.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.soup_kitchen_rounded, color: gold, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pesanan sedang dikukus • Estimasi siap ±${estMinutes ?? 15} menit',
+                          style: const TextStyle(color: gold, fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                        if (estReadyAt != null && estReadyAt.isNotEmpty) ...[
+                          const SizedBox(height: 1),
+                          Text(
+                            'Estimasi jam siap: $estReadyAt',
+                            style: const TextStyle(color: cream, fontSize: 10),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 10),
           Text(summary, style: const TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 13)),
           const SizedBox(height: 6),
@@ -224,6 +273,31 @@ class _OrdersPageState extends State<OrdersPage> {
                 style: const TextStyle(color: gold, fontWeight: FontWeight.w900, fontSize: 14),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+
+          // Tombol Pesan Lagi (Point 5)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                widget.state.reorderFromMap(order);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TakeawayPage(state: widget.state),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.replay_rounded, size: 16),
+              label: const Text('Pesan Lagi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
           ),
         ],
       ),

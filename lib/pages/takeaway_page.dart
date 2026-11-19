@@ -147,6 +147,11 @@ class _TakeawayPageState extends State<TakeawayPage> {
       return;
     }
 
+    if (!widget.state.isOperatingHours) {
+      _showOperatingHoursDialog();
+      return;
+    }
+
     // Validasi form (nama & nomor pengambil wajib, catatan maks. 200 karakter)
     if (!(_formKey.currentState?.validate() ?? false)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,13 +199,62 @@ class _TakeawayPageState extends State<TakeawayPage> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
+        final errText = e.toString().replaceFirst('Exception: ', '');
+        if (errText.contains('17:30') || errText.contains('operasional') || errText.contains('jam operasional')) {
+          _showOperatingHoursDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errText)),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  void _showOperatingHoursDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: brown2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: border),
+        ),
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: gold.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.access_time_filled, color: gold, size: 36),
+        ),
+        title: const Text(
+          'Jam Operasional Puthu Lanang',
+          style: TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+        content: const Text(
+          'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.\n\nSilakan kembali pada jam buka untuk menikmati sajian jajanan tradisional hangat kami.',
+          style: TextStyle(color: muted, fontSize: 13, height: 1.4),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            child: const Text('Mengerti', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -227,6 +281,41 @@ class _TakeawayPageState extends State<TakeawayPage> {
         child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Banner Jam Operasional (Jika di luar jam buka)
+          if (!widget.state.isOperatingHours)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3E1E16),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.storefront_outlined, color: Colors.amberAccent, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Gerai Sedang Tutup',
+                          style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.',
+                          style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // --- 1. PILIHAN GERAI OUTLET ---
           const Text('📍 Pilihan Gerai Outlet', style: TextStyle(color: Color(0xFFE69616), fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 10),
@@ -536,18 +625,22 @@ class _TakeawayPageState extends State<TakeawayPage> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: busy ? null : submit,
+              onPressed: (busy || !widget.state.isOperatingHours) ? null : submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade800,
+                disabledForegroundColor: Colors.white54,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
               child: Text(
                 busy
                     ? 'Memproses...'
-                    : (selectedPaymentMethod == 'cash'
-                        ? 'Buat Tiket (Bayar di Kasir)'
-                        : 'Lanjut ke Pembayaran Midtrans'),
+                    : (!widget.state.isOperatingHours
+                        ? 'Tutup (Buka 17:30 – 21:30 WIB)'
+                        : (selectedPaymentMethod == 'cash'
+                            ? 'Buat Tiket (Bayar di Kasir)'
+                            : 'Lanjut ke Pembayaran Midtrans')),
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),

@@ -61,7 +61,9 @@ class _AuthPageState extends State<AuthPage> {
         await widget.state.login(phone.text.trim(), pass.text.trim());
 
         if (!mounted) return;
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
         return;
       }
 
@@ -159,7 +161,9 @@ class _AuthPageState extends State<AuthPage> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -205,29 +209,31 @@ class _AuthPageState extends State<AuthPage> {
                   // TOMBOL BACK & HEADER ATAS
                   Row(
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: brown2,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: border),
+                      if (Navigator.of(context).canPop() || isOtpStep || isForgotStep) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: brown2,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: border),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white, size: 20),
+                            onPressed: () {
+                              if (isOtpStep || isForgotStep) {
+                                setState(() {
+                                  isOtpStep = false;
+                                  isForgotStep = false;
+                                });
+                              } else if (Navigator.of(context).canPop()) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            tooltip: 'Kembali',
+                          ),
                         ),
-                        child: IconButton(
-                          icon: const Icon(Icons.arrow_back,
-                              color: Colors.white, size: 20),
-                          onPressed: () {
-                            if (isOtpStep || isForgotStep) {
-                              setState(() {
-                                isOtpStep = false;
-                                isForgotStep = false;
-                              });
-                            } else {
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          tooltip: 'Kembali',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
+                      ],
                       Container(
                         width: 36,
                         height: 36,

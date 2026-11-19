@@ -3,7 +3,9 @@ import '../main.dart';
 import '../state/app_state.dart';
 import '../widgets/app_card.dart';
 import '../features/ai_insight/presentation/views/ai_insight_view.dart';
+import 'auth_page.dart';
 import 'notifications_page.dart';
+import 'takeaway_page.dart';
 
 class HomePage extends StatefulWidget {
   final AppState state;
@@ -19,11 +21,13 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final popular = widget.state.menu.take(4).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
         // Kartu Profil & Indikator Antrean
         AppCard(
           child: Row(
@@ -454,8 +458,72 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-        ],
-      ),
+          ],
+        ),
+        ),
+        if (widget.state.totalItems > 0)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 18,
+            child: AppCard(
+              child: Row(
+                children: [
+                  const Icon(Icons.shopping_bag, color: gold),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${widget.state.totalItems} item • ${rupiah(widget.state.totalPrice)}',
+                      style: const TextStyle(
+                        color: cream,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (!widget.state.loggedIn) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Silakan masuk atau daftar akun terlebih dahulu untuk melanjutkan pesanan.'),
+                            backgroundColor: gold,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuthPage(
+                              state: widget.state,
+                            ),
+                          ),
+                        );
+
+                        if (!widget.state.loggedIn || !context.mounted) return;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TakeawayPage(
+                            state: widget.state,
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Lanjut'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

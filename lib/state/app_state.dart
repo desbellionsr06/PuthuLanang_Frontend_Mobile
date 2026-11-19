@@ -13,6 +13,7 @@ class AppState extends ChangeNotifier {
   int tab = 0;
   bool loading = false;
   String? error;
+  bool isRestored = false;
 
   String userName = '';
   String phone = '';
@@ -36,6 +37,13 @@ class AppState extends ChangeNotifier {
       notifications.where((n) => (n['is_read'] ?? 0) == 0).length;
 
   bool get loggedIn => token != null;
+
+  // Validasi jam operasional Puthu Lanang (17:30 – 21:30 WIB)
+  bool get isOperatingHours {
+    final nowWib = DateTime.now().toUtc().add(const Duration(hours: 7));
+    final currentMinutes = nowWib.hour * 60 + nowWib.minute;
+    return currentMinutes >= 1050 && currentMinutes <= 1290;
+  }
 
   int get totalItems =>
       cart.fold(0, (sum, item) => sum + item.quantity);
@@ -107,6 +115,7 @@ class AppState extends ChangeNotifier {
     if (jwtToken != null) {
       unawaited(_startNotificationSync());
     }
+    isRestored = true;
     notifyListeners();
   }
 
@@ -208,6 +217,7 @@ class AppState extends ChangeNotifier {
     if (jwtToken != null) {
       unawaited(_startNotificationSync());
     }
+    isRestored = true;
     notifyListeners();
   }
 
@@ -288,6 +298,7 @@ class AppState extends ChangeNotifier {
     cart.clear();
     ticket = null;
     tab = 0;
+    isRestored = true;
 
     notifyListeners();
   }
@@ -586,5 +597,72 @@ class AppState extends ChangeNotifier {
 
     notifyListeners();
     return data;
+  }
+
+  // =========================
+  // RE-ORDER & INVOICE LOOKUP
+  // =========================
+
+  /// Memuat invoice tiket dari backend berdasarkan orderId lalu buka tab pesanan
+  Future<void> loadInvoiceTicket(String orderId) async {
+    try {
+      final inv = await ApiService.getInvoice(orderId);
+      if (inv.isNotEmpty) {
+        ticket = {
+          ...inv,
+          'id': inv['order_id'] ?? inv['id'] ?? orderId,
+          'summary_items': inv['summary_items'] ?? 'Pesanan Puthu Lanang',
+        };
+        tab = 3;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// Masukkan seluruh item dan jumlah dari pesanan lampau ke dalam keranjang belanja
+  void reorderFromMap(Map<String, dynamic> order) {
+    cart.clear();
+    final summary = (order['summary_items'] ?? '').toString().trim();
+    if (summary.isNotEmpty) {
+      final parts = summary.split(',');
+      for (final part in parts) {
+        final trimmed = part.trim();
+        final match = RegExp(r'^(\d+)x\s*(.*)$').firstMatch(trimmed);
+        if (match != null) {
+          final qty = int.tryParse(match.group(1) ?? '1') ?? 1;
+          final name = match.group(2)?.trim() ?? '';
+          final cleanName = name.toLowerCase();
+
+          final found = menu.where((m) =>
+              m.name.toLowerCase() == cleanName ||
+              m.name.toLowerCase().contains(cleanName) ||
+              cleanName.contains(m.name.toLowerCase()));
+
+          if (found.isNotEmpty) {
+            cart.add(CartItem(item: found.first, quantity: qty));
+          } else {
+            cart.add(CartItem(
+              item: MenuItem(
+                id: 'reorder-${cleanName.replaceAll(' ', '-')}',
+                name: name,
+                category: 'pusaka',
+                description: 'Menu favorit Puthu Lanang',
+                image: 'assets/images/puthu_bambu.png',
+                price: 18000,
+                stock: 100,
+                rating: 5.0,
+              ),
+              quantity: qty,
+            ));
+          }
+        }
+      }
+    }
+
+    if (cart.isEmpty && menu.isNotEmpty) {
+      cart.add(CartItem(item: menu.first, quantity: 1));
+    }
+
+    notifyListeners();
   }
 }

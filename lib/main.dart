@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -37,7 +39,15 @@ class _PuthuLanangAppState extends State<PuthuLanangApp> {
   @override
   void initState() {
     super.initState();
-    state.restore();
+    state.restore().then((_) {
+      if (kIsWeb) {
+        final uri = Uri.base;
+        final orderId = uri.queryParameters['order_id'];
+        if (orderId != null && orderId.isNotEmpty) {
+          unawaited(state.loadInvoiceTicket(orderId));
+        }
+      }
+    });
     state.loadMenu();
   }
 
@@ -58,9 +68,14 @@ class _PuthuLanangAppState extends State<PuthuLanangApp> {
             ),
             fontFamily: GoogleFonts.poppins().fontFamily,
           ),
-          home: MainShell(
-            state: state,
-          ),
+          home: !state.isRestored
+              ? const Scaffold(
+                  backgroundColor: brown,
+                  body: Center(
+                    child: CircularProgressIndicator(color: green),
+                  ),
+                )
+              : (state.loggedIn ? MainShell(state: state) : AuthPage(state: state)),
         );
       },
     );

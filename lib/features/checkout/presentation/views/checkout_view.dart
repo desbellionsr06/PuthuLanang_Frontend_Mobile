@@ -88,7 +88,56 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  void _showOperatingHoursDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: brown2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: border),
+        ),
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: gold.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.access_time_filled, color: gold, size: 36),
+        ),
+        title: const Text(
+          'Jam Operasional Puthu Lanang',
+          style: TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+        content: const Text(
+          'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.\n\nSilakan kembali pada jam buka untuk menikmati sajian jajanan tradisional hangat kami.',
+          style: TextStyle(color: muted, fontSize: 13, height: 1.4),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            child: const Text('Mengerti', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleProcessCheckout() async {
+    if (!widget.appState.isOperatingHours) {
+      _showOperatingHoursDialog();
+      return;
+    }
+
     if (!(_formKey.currentState?.validate() ?? false)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -125,12 +174,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     final checkoutState = ref.read(checkoutViewModelProvider);
 
     if (checkoutState.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(checkoutState.errorMessage!),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      final msg = checkoutState.errorMessage!;
+      if (msg.contains('17:30') || msg.contains('operasional') || msg.contains('jam operasional')) {
+        _showOperatingHoursDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
       return;
     }
 
@@ -182,6 +236,41 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           children: [
+            // Banner Jam Operasional (Jika di luar jam buka)
+            if (!widget.appState.isOperatingHours)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3E1E16),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.storefront_outlined, color: Colors.amberAccent, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Gerai Sedang Tutup',
+                            style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // 1. Informasi Gerai Pusat
             Container(
               padding: const EdgeInsets.all(14),
@@ -483,10 +572,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: checkoutState.isProcessing ? null : _handleProcessCheckout,
+                onPressed: (checkoutState.isProcessing || !widget.appState.isOperatingHours)
+                    ? null
+                    : _handleProcessCheckout,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: green,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade800,
+                  disabledForegroundColor: Colors.white54,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                 ),
                 child: checkoutState.isProcessing
@@ -496,9 +589,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : Text(
-                        checkoutState.paymentMethod == PaymentMethodType.cash
-                            ? 'Buat Pesanan (Bayar di Kasir)'
-                            : 'Lanjut ke Pembayaran Midtrans',
+                        !widget.appState.isOperatingHours
+                            ? 'Tutup (Buka 17:30 – 21:30 WIB)'
+                            : (checkoutState.paymentMethod == PaymentMethodType.cash
+                                ? 'Buat Pesanan (Bayar di Kasir)'
+                                : 'Lanjut ke Pembayaran Midtrans'),
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                       ),
               ),

@@ -228,6 +228,20 @@ class ApiService {
     return body;
   }
 
+  // Ambil detail invoice/struk pesanan berdasarkan ID (mendukung ORD-xxx atau ID numerik)
+  static Future<Map<String, dynamic>> getInvoice(String orderId) async {
+    final cleanId = orderId.trim();
+    final r = await http.get(
+      Uri.parse('$baseUrl/orders/invoice/$cleanId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (r.statusCode >= 400) {
+      throw Exception('Invoice pesanan tidak ditemukan.');
+    }
+    final body = jsonDecode(r.body) as Map<String, dynamic>;
+    return (body['data'] as Map<String, dynamic>?) ?? {};
+  }
+
   // AI 1: Smart Queue Estimator (terautentikasi JWT + mendukung jarak GPS)
   static Future<Map<String, dynamic>> getAiQueueEstimate({
     required String outlet,
