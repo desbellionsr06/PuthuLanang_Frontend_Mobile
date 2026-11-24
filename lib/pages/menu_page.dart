@@ -103,7 +103,7 @@ class _MenuPageState extends State<MenuPage> {
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
           children: [
             const Text(
               'Menu Jajanan Tradisional',

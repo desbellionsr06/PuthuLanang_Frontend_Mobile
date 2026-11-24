@@ -150,13 +150,9 @@ class MainShell extends StatelessWidget {
       body: SafeArea(
         child: pages[state.tab],
       ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: brown2,
-        indicatorColor: green.withValues(alpha: 0.25),
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        selectedIndex: state.tab,
-        onDestinationSelected: (i) {
+      bottomNavigationBar: _ModernBottomNavBar(
+        state: state,
+        onTabSelected: (i) {
           // Jika pengguna memilih tab Pesanan (3) atau Profil (4) tetapi belum login,
           // arahkan terlebih dahulu ke halaman Auth (Masuk/Daftar).
           if ((i == 3 || i == 4) && !state.loggedIn) {
@@ -173,36 +169,151 @@ class MainShell extends StatelessWidget {
           // Memperbarui tab aktif dan memicu pembaruan UI secara langsung
           state.setTab(i);
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Beranda',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu),
-            label: 'Menu',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_stories_outlined),
-            selectedIcon: Icon(Icons.auto_stories),
-            label: 'Cerita',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.confirmation_num_outlined),
-            selectedIcon: Icon(Icons.confirmation_num),
-            label: 'Pesanan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
       ),
     );
   }
+}
+
+class _ModernBottomNavBar extends StatelessWidget {
+  final AppState state;
+  final void Function(int) onTabSelected;
+
+  const _ModernBottomNavBar({
+    required this.state,
+    required this.onTabSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // Fallback minimum padding: jika bottomInset 0 (browser web standar), beri 16px.
+    // Jika ada home indicator iOS (~34px), beri bottomInset + 8px agar tidak menempel.
+    final effectiveBottomPadding = bottomInset > 0 ? (bottomInset + 8.0) : 16.0;
+
+    const tabs = [
+      _NavTabItem(
+        label: 'Beranda',
+        activeIcon: Icons.home,
+        inactiveIcon: Icons.home_outlined,
+      ),
+      _NavTabItem(
+        label: 'Menu',
+        activeIcon: Icons.restaurant_menu,
+        inactiveIcon: Icons.restaurant_menu_outlined,
+      ),
+      _NavTabItem(
+        label: 'Cerita',
+        activeIcon: Icons.auto_stories,
+        inactiveIcon: Icons.auto_stories_outlined,
+      ),
+      _NavTabItem(
+        label: 'Pesanan',
+        activeIcon: Icons.confirmation_num,
+        inactiveIcon: Icons.confirmation_num_outlined,
+      ),
+      _NavTabItem(
+        label: 'Profil',
+        activeIcon: Icons.person,
+        inactiveIcon: Icons.person_outline,
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: brown2,
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.8,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(4, 8, 4, effectiveBottomPadding),
+          child: Row(
+            children: List.generate(tabs.length, (index) {
+              final tab = tabs[index];
+              final isSelected = state.tab == index;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: () => onTabSelected(index),
+                  borderRadius: BorderRadius.circular(16),
+                  splashColor: green.withValues(alpha: 0.15),
+                  highlightColor: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Pill Indicator Modern ala WhatsApp
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
+                          width: 58,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? green.withValues(alpha: 0.28)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            isSelected ? tab.activeIcon : tab.inactiveIcon,
+                            size: 23,
+                            color: isSelected ? gold : muted,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        // Label teks rapi & terlindungi dari font scaling ekstrem
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            tab.label,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              color: isSelected ? cream : muted,
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavTabItem {
+  final String label;
+  final IconData activeIcon;
+  final IconData inactiveIcon;
+
+  const _NavTabItem({
+    required this.label,
+    required this.activeIcon,
+    required this.inactiveIcon,
+  });
 }
 
 String rupiah(int n) {

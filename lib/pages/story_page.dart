@@ -25,7 +25,7 @@ class _StoryPageState extends State<StoryPage> {
   Widget build(BuildContext context) {
     return ListView(
       controller: _scrollController, // 2. Pasang controller ke ListView
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
       children: [
         // --- HEADER ATAS ---
         Row(

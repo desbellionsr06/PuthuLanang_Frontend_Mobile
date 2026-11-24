@@ -678,7 +678,7 @@ class _TicketPageState extends State<TicketPage> {
         // --- 9. WIDGET AI SMART EXPIRY & FRESHNESS PREDICTOR ---
         _buildAiFreshnessCard(t),
 
-        const SizedBox(height: 30),
+        const SizedBox(height: 40),
       ],
     );
   }
