@@ -14,22 +14,35 @@ class SessionExpiredException implements Exception {
 }
 
 class ApiService {
+  // Mode Server: Gunakan true untuk Production (Railway), false untuk Development (Localhost port 5000)
+  static const bool useProduction = true;
+
   // Android Emulator: 10.0.2.2 = host machine (Mac).
   // Web / macOS desktop: localhost bisa digunakan langsung.
   static String get _host {
-    if (!kIsWeb && Platform.isAndroid) return '10.0.2.2';
+    if (!kIsWeb && Platform.isAndroid) {
+      return '10.0.2.2';
+    }
     return 'localhost';
   }
 
-  // Backend berjalan di port 5000
-  static String get baseUrl => 'http://$_host:5000/api';
+  // Backend URL (Production Railway atau Localhost:5000)
+  static String get baseUrl => useProduction
+      ? 'https://puthulanangbackend-production.up.railway.app/api'
+      : 'http://$_host:5000/api';
 
   static Future<List<MenuItem>> getMenu() async {
-    final r = await http.get(Uri.parse('$baseUrl/menu')).timeout(const Duration(seconds: 8));
-    if (r.statusCode != 200) throw Exception('Gagal mengambil menu');
-    
+    final r = await http
+        .get(Uri.parse('$baseUrl/menu'))
+        .timeout(const Duration(seconds: 8));
+    if (r.statusCode != 200) {
+      throw Exception('Gagal mengambil menu');
+    }
+
     final List<dynamic> data = jsonDecode(r.body) as List<dynamic>;
-    return data.map((e) => MenuItem.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => MenuItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // ====================================================================
@@ -38,16 +51,15 @@ class ApiService {
 
   /// Login: mengembalikan data user beserta jwt_token (Materi 9)
   /// Simpan jwt_token di SharedPreferences untuk validasi sesi berikutnya.
-  static Future<Map<String, dynamic>> login(String phone, String password) async {
-    final r = await http.post(
-      Uri.parse('$baseUrl/auth/user-login'), 
-      headers: {'Content-Type': 'application/json'}, 
-      body: jsonEncode({'no_whatsapp': phone, 'password': password})
-    );
-    
+  static Future<Map<String, dynamic>> login(
+      String phone, String password) async {
+    final r = await http.post(Uri.parse('$baseUrl/auth/user-login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'no_whatsapp': phone, 'password': password}));
+
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     if (r.statusCode >= 400) {
-      throw Exception(body['message'] ?? 'Login gagal');
+      throw Exception(body['message'] ?? body['error'] ?? 'Login gagal');
     }
     return body;
   }
@@ -66,24 +78,29 @@ class ApiService {
 
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     if (r.statusCode == 401 || r.statusCode == 403) {
-      throw SessionExpiredException(body['message'] ?? 'Sesi tidak valid.');
+      throw SessionExpiredException(body['message'] ?? body['error'] ?? 'Sesi tidak valid.');
     }
-    if (r.statusCode != 200) throw Exception(body['message'] ?? 'Gagal verifikasi sesi');
+    if (r.statusCode != 200) {
+      throw Exception(body['message'] ?? body['error'] ?? 'Gagal verifikasi sesi');
+    }
     return body; // { valid: true, user: { id, nama, no_whatsapp } }
   }
 
-  static Future<Map<String, dynamic>> register(String name, String phone, String password) async {
-    final r = await http.post(
-      Uri.parse('$baseUrl/auth/user-register'), 
-      headers: {'Content-Type': 'application/json'}, 
-      body: jsonEncode({'nama': name, 'no_whatsapp': phone, 'password': password})
-    );
+  static Future<Map<String, dynamic>> register(
+      String name, String phone, String password) async {
+    final r = await http.post(Uri.parse('$baseUrl/auth/user-register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(
+            {'nama': name, 'no_whatsapp': phone, 'password': password}));
     final body = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw Exception(body['message'] ?? 'Registrasi gagal');
+    if (r.statusCode >= 400) {
+      throw Exception(body['message'] ?? body['error'] ?? 'Registrasi gagal');
+    }
     return body;
   }
 
-  static Future<Map<String, dynamic>> sendOtp(String phone, {String type = 'register'}) async {
+  static Future<Map<String, dynamic>> sendOtp(String phone,
+      {String type = 'register'}) async {
     final r = await http.post(
       Uri.parse('$baseUrl/auth/send-otp'),
       headers: {'Content-Type': 'application/json'},
@@ -93,7 +110,9 @@ class ApiService {
       }),
     );
     final body = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw Exception(body['message'] ?? 'Gagal mengirim OTP');
+    if (r.statusCode >= 400) {
+      throw Exception(body['message'] ?? body['error'] ?? 'Gagal mengirim OTP');
+    }
     return body;
   }
 
@@ -116,7 +135,9 @@ class ApiService {
       }),
     );
     final body = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw Exception(body['message'] ?? 'Verifikasi OTP gagal');
+    if (r.statusCode >= 400) {
+      throw Exception(body['message'] ?? body['error'] ?? 'Verifikasi OTP gagal');
+    }
     return body;
   }
 
@@ -135,7 +156,9 @@ class ApiService {
       }),
     );
     final body = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw Exception(body['message'] ?? 'Gagal mengubah password');
+    if (r.statusCode >= 400) {
+      throw Exception(body['message'] ?? body['error'] ?? 'Gagal mengubah password');
+    }
     return body;
   }
 
@@ -163,12 +186,15 @@ class ApiService {
   }) async {
     final r = await http
         .get(
-          Uri.parse('$baseUrl/orders').replace(queryParameters: {'user_id': '$userId'}),
+          Uri.parse('$baseUrl/orders')
+              .replace(queryParameters: {'user_id': '$userId'}),
           headers: _authHeaders(token),
         )
         .timeout(const Duration(seconds: 8));
     _throwIfSessionInvalid(r);
-    if (r.statusCode != 200) throw Exception('Gagal mengambil riwayat pesanan');
+    if (r.statusCode != 200) {
+      throw Exception('Gagal mengambil riwayat pesanan');
+    }
 
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     final List<dynamic> data = (body['data'] as List<dynamic>?) ?? const [];
@@ -209,22 +235,22 @@ class ApiService {
     String notes = '',
     String paymentMethod = 'cash',
   }) async {
-    final r = await http.post(
-      Uri.parse('$baseUrl/orders'),
-      headers: _authHeaders(token),
-      body: jsonEncode({
-        'user_id': userId,
-        'pickupTime': pickupTime,
-        'pickupDate': pickupDate,
-        'items': items,
-        'total': total,
-        'notes': notes,
-        'payment_method': paymentMethod,
-      })
-    );
+    final r = await http.post(Uri.parse('$baseUrl/orders'),
+        headers: _authHeaders(token),
+        body: jsonEncode({
+          'user_id': userId,
+          'pickupTime': pickupTime,
+          'pickupDate': pickupDate,
+          'items': items,
+          'total': total,
+          'notes': notes,
+          'payment_method': paymentMethod,
+        }));
     _throwIfSessionInvalid(r);
     final body = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw Exception(body['error'] ?? 'Pesanan gagal');
+    if (r.statusCode >= 400) {
+      throw Exception(body['error'] ?? body['message'] ?? 'Pesanan gagal');
+    }
     return body;
   }
 
@@ -293,7 +319,8 @@ class ApiService {
       'status': 'success',
       'outlet': outlet,
       'verification_status': 'pending',
-      'crowd_level': isEarly ? 'Antrean Pendek' : (isPeak ? 'Jam Sibuk' : 'Ramai Lancar'),
+      'crowd_level':
+          isEarly ? 'Antrean Pendek' : (isPeak ? 'Jam Sibuk' : 'Ramai Lancar'),
       'crowd_color': isEarly ? 'green' : (isPeak ? 'orange' : 'gold'),
       'estimated_wait': '~$minWait - $maxWait Mnt',
       'wait_time_min': minWait,
@@ -313,12 +340,10 @@ class ApiService {
     String featureType = 'queue_estimator',
   }) async {
     try {
-      final r = await http
-          .get(
-            Uri.parse('$baseUrl/ai/verified-latest?feature_type=$featureType'),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 6));
+      final r = await http.get(
+        Uri.parse('$baseUrl/ai/verified-latest?feature_type=$featureType'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 6));
 
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
@@ -361,28 +386,56 @@ class ApiService {
 
     // Fallback kurasi cerdas
     final lower = '$query $preference'.toLowerCase();
-    if (lower.contains('hampers') || lower.contains('oleh') || lower.contains('besek')) {
+    if (lower.contains('hampers') ||
+        lower.contains('oleh') ||
+        lower.contains('besek')) {
       return {
         'status': 'success',
         'recommendation_title': 'Paket Hampers Anyaman Besek Elegan',
-        'reason': 'Pilihan hantaran buah tangan istimewa dalam kemasan besek bambu tradisional ramah lingkungan.',
+        'reason':
+            'Pilihan hantaran buah tangan istimewa dalam kemasan besek bambu tradisional ramah lingkungan.',
         'ai_tag': 'Rekomendasi Hantaran (Best Gift)',
         'total_estimated': 65000,
         'items': [
-          {'id': 'besek-hampers-06', 'nama': 'Box Besek Bambu Hampers', 'harga': 45000, 'qty': 1, 'alasan': 'Kemasan besek bambu otentik siap hantar'},
-          {'id': 'paket-campur-05', 'nama': 'Paket Campur', 'harga': 20000, 'qty': 1, 'alasan': 'Isian komplit 4 jajanan pusaka 1935'}
+          {
+            'id': 'besek-hampers-06',
+            'nama': 'Box Besek Bambu Hampers',
+            'harga': 45000,
+            'qty': 1,
+            'alasan': 'Kemasan besek bambu otentik siap hantar'
+          },
+          {
+            'id': 'paket-campur-05',
+            'nama': 'Paket Campur',
+            'harga': 20000,
+            'qty': 1,
+            'alasan': 'Isian komplit 4 jajanan pusaka 1935'
+          }
         ]
       };
     } else if (lower.contains('manis')) {
       return {
         'status': 'success',
         'recommendation_title': 'Kombinasi Manis Legit Aren Asli',
-        'reason': 'Perpaduan klasik puthu pandan suji dan letupan klepon gula aren murni.',
+        'reason':
+            'Perpaduan klasik puthu pandan suji dan letupan klepon gula aren murni.',
         'ai_tag': 'Manis Alami (Natural Sweetness)',
         'total_estimated': 36000,
         'items': [
-          {'id': 'puthu-01', 'nama': 'Puthu', 'harga': 18000, 'qty': 1, 'alasan': 'Puthu beras pandan suji dengan gula aren cair'},
-          {'id': 'klepon-02', 'nama': 'Klepon', 'harga': 18000, 'qty': 1, 'alasan': 'Letupan gula aren legit berbalut kelapa gurih'}
+          {
+            'id': 'puthu-01',
+            'nama': 'Puthu',
+            'harga': 18000,
+            'qty': 1,
+            'alasan': 'Puthu beras pandan suji dengan gula aren cair'
+          },
+          {
+            'id': 'klepon-02',
+            'nama': 'Klepon',
+            'harga': 18000,
+            'qty': 1,
+            'alasan': 'Letupan gula aren legit berbalut kelapa gurih'
+          }
         ]
       };
     }
@@ -390,12 +443,25 @@ class ApiService {
     return {
       'status': 'success',
       'recommendation_title': 'Paket Solo Harmoni 1935',
-      'reason': 'Kombinasi seimbang jajanan pusaka, pas dinikmati santai sore hari.',
+      'reason':
+          'Kombinasi seimbang jajanan pusaka, pas dinikmati santai sore hari.',
       'ai_tag': 'Rekomendasi Favorit AI',
       'total_estimated': 38000,
       'items': [
-        {'id': 'paket-campur-05', 'nama': 'Paket Campur', 'harga': 20000, 'qty': 1, 'alasan': 'Puthu, klepon, cenil, dan lupis komplit'},
-        {'id': 'puthu-01', 'nama': 'Puthu', 'harga': 18000, 'qty': 1, 'alasan': 'Puthu bambu legendaris resep asli 1935'}
+        {
+          'id': 'paket-campur-05',
+          'nama': 'Paket Campur',
+          'harga': 20000,
+          'qty': 1,
+          'alasan': 'Puthu, klepon, cenil, dan lupis komplit'
+        },
+        {
+          'id': 'puthu-01',
+          'nama': 'Puthu',
+          'harga': 18000,
+          'qty': 1,
+          'alasan': 'Puthu bambu legendaris resep asli 1935'
+        }
       ]
     };
   }
@@ -428,7 +494,9 @@ class ApiService {
           headers: _authHeaders(token),
         )
         .timeout(const Duration(seconds: 6));
-    if (r.statusCode != 200) return [];
+    if (r.statusCode != 200) {
+      return [];
+    }
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     final list = (body['data'] as List<dynamic>?) ?? const [];
     return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
