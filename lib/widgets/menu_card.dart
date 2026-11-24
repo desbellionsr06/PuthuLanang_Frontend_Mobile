@@ -22,18 +22,19 @@ class MenuCard extends StatelessWidget {
 
     return AppCard(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Image.asset(
               item.image,
-              width: 92,
-              height: 92,
+              width: 86,
+              height: 86,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) {
                 return Container(
-                  width: 92,
-                  height: 92,
+                  width: 86,
+                  height: 86,
                   color: brown,
                   child: const Icon(
                     Icons.image_not_supported,
@@ -43,7 +44,7 @@ class MenuCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
 
           Expanded(
             child: Column(
@@ -54,13 +55,16 @@ class MenuCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: cream,
                           fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                          fontSize: 14,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 4),
                     Text(
                       '★ ${item.rating}',
                       style: const TextStyle(
@@ -90,21 +94,26 @@ class MenuCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        rupiah(item.price),
-                        style: const TextStyle(
-                          color: gold,
-                          fontWeight: FontWeight.w900,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          rupiah(item.price),
+                          style: const TextStyle(
+                            color: gold,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
-
+                    const SizedBox(width: 6),
                     if (q == 0)
                       ElevatedButton.icon(
                         onPressed: () => state.add(item),
                         icon: const Icon(
                           Icons.add,
-                          size: 15,
+                          size: 14,
                         ),
                         label: const Text('Tambah'),
                         style: ElevatedButton.styleFrom(
@@ -112,22 +121,30 @@ class MenuCard extends StatelessWidget {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 7,
+                            vertical: 6,
                           ),
                           minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       )
                     else
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
                             onPressed: () => state.remove(item),
                             icon: const Icon(
                               Icons.remove,
-                              size: 16,
+                              size: 15,
                             ),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
                               backgroundColor: brown,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
 
@@ -140,6 +157,7 @@ class MenuCard extends StatelessWidget {
                               style: const TextStyle(
                                 color: gold,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
                             ),
                           ),
@@ -148,10 +166,16 @@ class MenuCard extends StatelessWidget {
                             onPressed: () => state.add(item),
                             icon: const Icon(
                               Icons.add,
-                              size: 16,
+                              size: 15,
                             ),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
                               backgroundColor: green,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
                         ],

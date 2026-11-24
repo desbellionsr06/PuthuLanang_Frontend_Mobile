@@ -350,14 +350,20 @@ class _AuthPageState extends State<AuthPage> {
                                           borderRadius:
                                               BorderRadius.circular(10),
                                         ),
-                                        child: Text(
-                                          'Masuk Akun',
-                                          style: TextStyle(
-                                              color: !register
-                                                  ? Colors.white
-                                                  : muted,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            child: Text(
+                                              'Masuk Akun',
+                                              style: TextStyle(
+                                                  color: !register
+                                                      ? Colors.white
+                                                      : muted,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -377,14 +383,20 @@ class _AuthPageState extends State<AuthPage> {
                                           borderRadius:
                                               BorderRadius.circular(10),
                                         ),
-                                        child: Text(
-                                          'Daftar Akun Baru',
-                                          style: TextStyle(
-                                              color: register
-                                                  ? Colors.white
-                                                  : muted,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            child: Text(
+                                              'Daftar Akun Baru',
+                                              style: TextStyle(
+                                                  color: register
+                                                      ? Colors.white
+                                                      : muted,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),

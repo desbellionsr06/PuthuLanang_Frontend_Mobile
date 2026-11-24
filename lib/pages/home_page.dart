@@ -173,41 +173,87 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(color: muted, fontSize: 12, height: 1.4),
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  // Tombol Pesan Takeaway -> Berpindah ke Tab Menu (Index 1)
-                  ElevatedButton(
-                    onPressed: () {
-                      widget.state.setTab(1);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text('Pesan Takeaway'),
-                        SizedBox(width: 6),
-                        Text('→', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  
-                  // Tombol Baca Cerita -> Berpindah ke Tab Cerita (Index 2)
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      widget.state.setTab(2);
-                    },
-                    icon: const Icon(Icons.menu_book, size: 16),
-                    label: const Text('Baca Cerita'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: cream,
-                      side: const BorderSide(color: border),
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 280;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.start,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Tombol Pesan Takeaway -> Berpindah ke Tab Menu (Index 1)
+                      ElevatedButton(
+                        onPressed: () {
+                          widget.state.setTab(1);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: green,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isNarrow ? 12 : 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Pesan Takeaway',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                '→',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Tombol Baca Cerita -> Berpindah ke Tab Cerita (Index 2)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          widget.state.setTab(2);
+                        },
+                        icon: const Icon(Icons.menu_book, size: 15),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Baca Cerita',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cream,
+                          side: const BorderSide(color: border),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isNarrow ? 10 : 14,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -242,12 +288,20 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                '17:30 - 21:30',
-                style: TextStyle(
-                  color: green,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: green.withValues(alpha: 0.4)),
+                ),
+                child: const Text(
+                  '17:30 - 21:30',
+                  style: TextStyle(
+                    color: green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -285,15 +339,18 @@ class _HomePageState extends State<HomePage> {
                         'Insight Antrean & Menu AI (GPS)',
                         style: TextStyle(color: cream, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
+                      SizedBox(height: 2),
                       Text(
                         'Cek estimasi antrean berbasis lokasi GPS & saran Gemini AI',
                         style: TextStyle(color: muted, fontSize: 10),
-                        maxLines: 1,
+                        maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
                 const Icon(Icons.chevron_right, color: gold),
               ],
             ),
@@ -341,7 +398,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisCount: 2,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 0.68,
+            mainAxisExtent: 226,
           ),
           itemBuilder: (c, i) {
             final m = popular[i];
@@ -409,6 +466,8 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         Text(
                           m.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: cream,
                             fontWeight: FontWeight.bold,
@@ -474,12 +533,16 @@ class _HomePageState extends State<HomePage> {
                   Expanded(
                     child: Text(
                       '${widget.state.totalItems} item • ${rupiah(widget.state.totalPrice)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: cream,
                         fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () async {
                       if (!widget.state.loggedIn) {

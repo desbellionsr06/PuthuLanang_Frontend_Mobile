@@ -445,12 +445,18 @@ class _TakeawayPageState extends State<TakeawayPage> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: selectedTime == timeSlot ? green : border),
                 ),
-                child: Text(
-                  timeSlot,
-                  style: TextStyle(
-                    color: selectedTime == timeSlot ? Colors.white : Colors.grey[300],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      timeSlot,
+                      style: TextStyle(
+                        color: selectedTime == timeSlot ? Colors.white : Colors.grey[300],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -730,20 +736,23 @@ class _TakeawayPageState extends State<TakeawayPage> {
           fetchQueueEstimate();
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFFE69616) : brown2,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: isSelected ? const Color(0xFFE69616) : border),
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? Colors.black : Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? Colors.black : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
         ),

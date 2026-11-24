@@ -177,12 +177,17 @@ class _ProfilePageState extends State<ProfilePage> {
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: gold.withValues(alpha: 0.4)),
                         ),
-                        child: Text(
-                          isVip ? '★ VIP Member (Aktif)' : '☆ Upgrade ke VIP Member (Rp 10.000)',
-                          style: const TextStyle(
-                            color: gold,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            isVip ? '★ VIP Member (Aktif)' : '☆ Upgrade ke VIP Member (Rp 10.000)',
+                            maxLines: 1,
+                            style: const TextStyle(
+                              color: gold,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

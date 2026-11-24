@@ -323,21 +323,29 @@ class _TicketPageState extends State<TicketPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.tag, color: gold, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            'ORDER ID: $orderId',
-                            style: const TextStyle(
-                              color: cream,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.tag, color: gold, size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                'ORDER ID: $orderId',
+                                style: const TextStyle(
+                                  color: cream,
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       InkWell(
                         onTap: () {
                           Clipboard.setData(ClipboardData(text: orderId));
@@ -604,27 +612,33 @@ class _TicketPageState extends State<TicketPage> {
                   );
                 },
                 icon: const Icon(Icons.receipt_long, size: 16),
-                label: const Text('Lihat Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Lihat Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: gold,
                   side: const BorderSide(color: gold),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () {
                   state.setTab(0);
                 },
                 icon: const Icon(Icons.home, size: 16),
-                label: const Text('Ke Beranda', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Ke Beranda', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: cream,
                   side: const BorderSide(color: border),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
               ),

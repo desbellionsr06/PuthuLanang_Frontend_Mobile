@@ -1,11 +1,11 @@
 {
-    "name": "puthu_lanang_flutter",
-    "short_name": "puthu_lanang_flutter",
+    "name": "Puthu Lanang 1935 - Smart Takeaway",
+    "short_name": "Puthu Lanang",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1E1510",
+    "theme_color": "#1E1510",
+    "description": "Aplikasi Pemesanan Smart Takeaway Puthu Lanang Malang Sejak 1935.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

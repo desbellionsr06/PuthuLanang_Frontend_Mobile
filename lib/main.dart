@@ -67,7 +67,53 @@ class _PuthuLanangAppState extends State<PuthuLanangApp> {
               brightness: Brightness.dark,
             ),
             fontFamily: GoogleFonts.poppins().fontFamily,
+            navigationBarTheme: NavigationBarThemeData(
+              height: 64,
+              backgroundColor: brown2,
+              indicatorColor: green.withValues(alpha: 0.25),
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return const TextStyle(
+                    color: gold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  );
+                }
+                return const TextStyle(
+                  color: muted,
+                  fontSize: 10,
+                );
+              }),
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return const IconThemeData(color: gold, size: 22);
+                }
+                return const IconThemeData(color: cream, size: 20);
+              }),
+            ),
           ),
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            final clampedMediaQuery = mediaQuery.copyWith(
+              textScaler: mediaQuery.textScaler.clamp(
+                minScaleFactor: 0.85,
+                maxScaleFactor: 1.15,
+              ),
+            );
+
+            return MediaQuery(
+              data: clampedMediaQuery,
+              child: ColoredBox(
+                color: const Color(0xFF120B08),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            );
+          },
           home: !state.isRestored
               ? const Scaffold(
                   backgroundColor: brown,
@@ -107,6 +153,8 @@ class MainShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         backgroundColor: brown2,
         indicatorColor: green.withValues(alpha: 0.25),
+        height: 64,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: state.tab,
         onDestinationSelected: (i) {
           // Jika pengguna memilih tab Pesanan (3) atau Profil (4) tetapi belum login,

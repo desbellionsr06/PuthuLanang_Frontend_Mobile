@@ -145,12 +145,16 @@ class _MenuPageState extends State<MenuPage> {
                   Expanded(
                     child: Text(
                       '${state.totalItems} item • ${rupiah(state.totalPrice)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: cream,
                         fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () async {
                       if (!state.loggedIn) {
@@ -437,22 +441,27 @@ class _MenuPageState extends State<MenuPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: green.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  aiRecommendation!['ai_tag'] ??
-                                      'Rekomendasi Terbaik',
-                                  style: const TextStyle(
-                                      color: green,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: green.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    aiRecommendation!['ai_tag'] ??
+                                        'Rekomendasi Terbaik',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: green,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 rupiah((aiRecommendation!['total_estimated']
                                             as num?)

@@ -330,19 +330,22 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         isoDate: opt['iso']!,
                       ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: isSelected ? gold : brown2,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: isSelected ? gold : border),
                         ),
-                        child: Text(
-                          opt['title']!,
-                          style: TextStyle(
-                            color: isSelected ? Colors.black : Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            opt['title']!,
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -393,12 +396,18 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: isSelected ? green : border),
                     ),
-                    child: Text(
-                      slot,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.grey[300],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          slot,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.grey[300],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
                   ),
