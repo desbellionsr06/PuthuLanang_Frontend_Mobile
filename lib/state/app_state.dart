@@ -4,11 +4,27 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/di/injection.dart';
+import '../features/auth/domain/entities/auth_session.dart';
+import '../features/auth/domain/usecases/login_user.dart';
+import '../features/auth/domain/usecases/logout_user.dart';
+import '../features/auth/domain/usecases/restore_auth_session.dart';
+import '../features/checkout/domain/entities/checkout_entity.dart';
+import '../features/checkout/domain/usecases/create_checkout_order.dart';
+import '../features/menu/domain/usecases/get_menu_catalog.dart';
+import '../features/orders/domain/usecases/complete_order.dart';
+import '../features/orders/domain/usecases/get_order_history.dart';
+import '../features/orders/domain/usecases/get_order_invoice.dart';
+import '../features/profile/domain/usecases/get_notifications.dart';
+import '../features/profile/domain/usecases/mark_notifications_read.dart';
+import '../features/profile/domain/usecases/sync_device_fcm_token.dart';
 import '../models/cart_item.dart';
 import '../models/menu_item.dart';
-import '../services/api_service.dart';
+import '../services/api_service.dart' show SessionExpiredException;
 import '../services/notification_service.dart';
 
+/// Shared application state (tab aktif, keranjang, sesi, tiket, notifikasi).
+/// Seluruh akses data & aturan bisnis didelegasikan ke Domain Use Cases melalui GetIt.
 class AppState extends ChangeNotifier {
   int tab = 0;
   bool loading = false;
@@ -17,18 +33,15 @@ class AppState extends ChangeNotifier {
 
   String userName = '';
   String phone = '';
-  String? token;     // token legacy (server-token-*) untuk backward compatibility
-  String? jwtToken;  // JWT token resmi (Materi 9) — dipakai untuk verify-session
-  int? userId; // ID akun di tabel `users` (kunci relasi pesanan)
+  String? token;
+  String? jwtToken;
+  int? userId;
 
   List<MenuItem> menu = const [];
   final List<CartItem> cart = [];
   Map<String, dynamic>? ticket;
 
-  // Riwayat transaksi (terbaru di urutan pertama)
   List<Map<String, dynamic>> orderHistory = [];
-
-  // Notifikasi real-time dari backend (status pesanan & verifikasi AI)
   List<Map<String, dynamic>> notifications = [];
   final Set<int> _shownNotifIds = {};
   Timer? _notifTimer;
@@ -38,18 +51,16 @@ class AppState extends ChangeNotifier {
 
   bool get loggedIn => token != null;
 
-  // Validasi jam operasional Puthu Lanang (17:30 – 21:30 WIB)
+  /// Validasi jam operasional Puthu Lanang (17:30 – 21:30 WIB)
   bool get isOperatingHours {
     final nowWib = DateTime.now().toUtc().add(const Duration(hours: 7));
     final currentMinutes = nowWib.hour * 60 + nowWib.minute;
     return currentMinutes >= 1050 && currentMinutes <= 1290;
   }
 
-  int get totalItems =>
-      cart.fold(0, (sum, item) => sum + item.quantity);
+  int get totalItems => cart.fold(0, (sum, item) => sum + item.quantity);
 
-  int get totalPrice =>
-      cart.fold(0, (sum, item) => sum + item.subtotal);
+  int get totalPrice => cart.fold(0, (sum, item) => sum + item.subtotal);
 
   // =========================
   // TAB NAVIGATION
@@ -61,165 +72,70 @@ class AppState extends ChangeNotifier {
   }
 
   // =========================
-  // RESTORE SESSION & 30-DAY CHECK
-  // =========================
-
-  // =========================
-  // RESTORE SESSION & JWT VERIFY (Materi 9)
+  // SESSION MANAGEMENT (via Auth UseCases)
   // =========================
 
   Future<void> restore() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final loginTimeMillis = prefs.getInt('login_timestamp') ?? 0;
-    if (loginTimeMillis > 0) {
-      final loginDate = DateTime.fromMillisecondsSinceEpoch(loginTimeMillis);
-      final differenceDays = DateTime.now().difference(loginDate).inDays;
-
-      // Jika durasi login sudah melebihi 30 hari, lakukan logout otomatis
-      if (differenceDays > 30) {
-        await logout();
-        return;
-      }
-    }
-
-    token = prefs.getString('token');
-    jwtToken = prefs.getString('jwt_token'); // Materi 9: baca JWT dari storage
-    userName = prefs.getString('name') ?? '';
-    phone = prefs.getString('phone') ?? '';
-    userId = prefs.getInt('user_id');
-
-    // Sesi lama (sebelum riwayat diikat ke user_id) tidak punya user_id:
-    // paksa masuk ulang agar pesanan terikat ke akun yang benar.
-    if (token != null && userId == null) {
+    final session = await getIt<RestoreAuthSession>().execute();
+    if (session == null) {
       await logout();
       return;
     }
 
-    // Materi 9: Verifikasi JWT token ke backend saat restore sesi
-    // Jika JWT ada dan tidak valid → logout otomatis
-    if (jwtToken != null) {
-      try {
-        await ApiService.verifySession(jwtToken!);
-        // JWT valid: lanjutkan sesi
-      } on SessionExpiredException {
-        // JWT kedaluwarsa atau akun dihapus → logout
-        await logout();
-        return;
-      } catch (_) {
-        // Backend tidak terjangkau → tetap izinkan offline mode
-      }
-    }
-
-    _loadHistory(prefs);
-    if (jwtToken != null) {
-      unawaited(_startNotificationSync());
-    }
-    isRestored = true;
-    notifyListeners();
+    await applySession(session);
   }
 
-  // =========================
-  // REGISTER
-  // =========================
+  Future<void> applySession(AuthSession session) async {
+    userId = session.userId;
+    token = session.token;
+    jwtToken = session.jwtToken;
+    userName = session.name;
+    phone = session.phone;
 
-  Future<void> register(
-    String name,
-    String p,
-    String pass, {
-    required int userId,
-    String? jwtToken,
-  }) async {
-    final cleanName = name.trim();
-    final cleanPhone = p.trim();
-    final cleanPassword = pass.trim();
-
-    if (cleanName.isEmpty || cleanPhone.isEmpty || cleanPassword.isEmpty) {
-      throw Exception('Lengkapi semua data terlebih dahulu.');
-    }
-
-    if (cleanPassword.length < 6) {
-      throw Exception('Password minimal 6 karakter.');
-    }
-
-    // Register ke MySQL melalui backend (sudah dilakukan di verify-otp)
-    // Langsung simpan sesi login ke SharedPreferences
-    await _saveSession(
-      userId: userId,
-      name: cleanName,
-      phone: cleanPhone,
-      token: 'server-token-$cleanPhone',
-      jwtToken: jwtToken,
-    );
-  }
-
-  // =========================
-  // LOGIN
-  // =========================
-
-  Future<void> login(
-    String p,
-    String pass,
-  ) async {
-    final cleanPhone = p.trim();
-    final cleanPassword = pass.trim();
-
-    if (cleanPhone.isEmpty || cleanPassword.isEmpty) {
-      throw Exception('Nomor WhatsApp dan password wajib diisi.');
-    }
-
-    // Login ke MySQL melalui backend (Materi 9: terima jwt_token)
-    final result = await ApiService.login(cleanPhone, cleanPassword);
-    final data = result['data'] as Map<String, dynamic>;
-    final id = int.tryParse('${data['id']}');
-    if (id == null) throw Exception('Data akun dari server tidak valid.');
-
-    // Simpan JWT token (Materi 9)
-    final receivedJwt = data['jwt_token'] as String?;
-
-    await _saveSession(
-      userId: id,
-      name: data['nama'] as String? ?? 'Pecinta Kuliner',
-      phone: cleanPhone,
-      token: data['token'] as String? ?? 'server-token-$cleanPhone',
-      jwtToken: receivedJwt,
-    );
-  }
-
-  // Helper: simpan sesi ke SharedPreferences & update state (Materi 9: +jwt)
-  Future<void> _saveSession({
-    required int userId,
-    required String name,
-    required String phone,
-    required String token,
-    String? jwtToken, // JWT token opsional (hanya ada setelah login baru)
-  }) async {
     final prefs = await SharedPreferences.getInstance();
-
-    this.userId = userId;
-    this.token = token;
-    this.jwtToken = jwtToken;
-    userName = name;
-    this.phone = phone;
-
-    await prefs.setInt('user_id', userId);
-    await prefs.setString('token', token);
-    await prefs.setString('name', name);
-    await prefs.setString('phone', phone);
-    await prefs.setInt('login_timestamp', DateTime.now().millisecondsSinceEpoch);
-
-    // Materi 9: simpan JWT ke SharedPreferences
-    if (jwtToken != null) {
-      await prefs.setString('jwt_token', jwtToken);
-    }
-
     _loadHistory(prefs);
-    if (jwtToken != null) {
+
+    if (jwtToken != null && jwtToken!.isNotEmpty) {
       unawaited(_startNotificationSync());
     }
     isRestored = true;
     notifyListeners();
   }
+
+  Future<void> login(String p, String pass) async {
+    final session = await getIt<LoginUser>().execute(
+      phone: p,
+      password: pass,
+    );
+    await applySession(session);
+  }
+
+  Future<void> logout() async {
+    await getIt<LogoutUser>().execute();
+
+    _notifTimer?.cancel();
+    _notifTimer = null;
+    notifications = [];
+    _shownNotifIds.clear();
+
+    userId = null;
+    token = null;
+    jwtToken = null;
+    userName = '';
+    phone = '';
+    orderHistory = [];
+
+    cart.clear();
+    ticket = null;
+    tab = 0;
+    isRestored = true;
+
+    notifyListeners();
+  }
+
+  // =========================
+  // NOTIFICATIONS (via Profile UseCases)
+  // =========================
 
   Future<void> _startNotificationSync() async {
     final jwt = jwtToken;
@@ -227,7 +143,12 @@ class AppState extends ChangeNotifier {
 
     await NotificationService.initialize();
     final deviceToken = 'puthu-mobile-device-${userId ?? 0}';
-    await ApiService.syncFcmToken(token: jwt, fcmToken: deviceToken);
+    try {
+      await getIt<SyncDeviceFcmToken>().execute(
+        token: jwt,
+        fcmToken: deviceToken,
+      );
+    } catch (_) {}
     await refreshNotifications();
 
     _notifTimer?.cancel();
@@ -241,7 +162,7 @@ class AppState extends ChangeNotifier {
     if (jwt == null || jwt.isEmpty) return;
 
     try {
-      final rows = await ApiService.getMyNotifications(token: jwt);
+      final rows = await getIt<GetNotifications>().execute(token: jwt);
       for (final item in rows) {
         final id = int.tryParse('${item['id']}');
         final isRead = (item['is_read'] ?? 0) == 1;
@@ -259,135 +180,35 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void setNotificationsRead(List<Map<String, dynamic>> rows) {
+    notifications = rows.map((n) => {...n, 'is_read': 1}).toList();
+    notifyListeners();
+  }
+
   Future<void> markAllNotificationsRead() async {
     final jwt = jwtToken;
     if (jwt == null || jwt.isEmpty) return;
-    await ApiService.markNotificationsRead(token: jwt);
-    notifications = notifications
-        .map((n) => {...n, 'is_read': 1})
-        .toList();
+    await getIt<MarkNotificationsRead>().execute(token: jwt);
+    notifications = notifications.map((n) => {...n, 'is_read': 1}).toList();
     notifyListeners();
   }
 
   // =========================
-  // LOGOUT
-  // =========================
-
-  Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.remove('user_id');
-    await prefs.remove('token');
-    await prefs.remove('jwt_token'); // Materi 9: hapus JWT saat logout
-    await prefs.remove('name');
-    await prefs.remove('phone');
-    await prefs.remove('login_timestamp');
-
-    _notifTimer?.cancel();
-    _notifTimer = null;
-    notifications = [];
-    _shownNotifIds.clear();
-
-    userId = null;
-    token = null;
-    jwtToken = null; // Materi 9: clear JWT state
-    userName = '';
-    phone = '';
-    orderHistory = [];
-
-    cart.clear();
-    ticket = null;
-    tab = 0;
-    isRestored = true;
-
-    notifyListeners();
-  }
-
-  // =========================
-  // LOAD MENU
+  // LOAD MENU (via Menu UseCase)
   // =========================
 
   Future<void> loadMenu() async {
     loading = true;
     error = null;
-
     notifyListeners();
 
     try {
-      menu = await ApiService.getMenu();
+      menu = await getIt<GetMenuCatalog>().execute();
     } catch (_) {
-      menu = const [
-        MenuItem(
-          id: 'puthu-01',
-          name: 'Puthu',
-          category: 'pusaka',
-          description:
-              'Puthu beras pandan suji dengan gula aren cair dan kelapa gurih.',
-          image: 'assets/images/puthu_bambu.png',
-          price: 18000,
-          stock: 120,
-          rating: 4.9,
-        ),
-        MenuItem(
-          id: 'klepon-02',
-          name: 'Klepon',
-          category: 'paling_laris',
-          description:
-              'Ketan hijau kenyal dengan isian gula aren cair.',
-          image: 'assets/images/klepon_pandan.png',
-          price: 18000,
-          stock: 95,
-          rating: 4.9,
-        ),
-        MenuItem(
-          id: 'cenil-03',
-          name: 'Cenil',
-          category: 'pusaka',
-          description:
-              'Cenil warna-warni dengan juruh gula aren dan kelapa.',
-          image: 'assets/images/cenil_pelangi.png',
-          price: 18000,
-          stock: 80,
-          rating: 4.8,
-        ),
-        MenuItem(
-          id: 'lupis-04',
-          name: 'Lupis',
-          category: 'pusaka',
-          description:
-              'Ketan legit dengan kelapa parut dan juruh aren.',
-          image: 'assets/images/lupis_ketan.png',
-          price: 18000,
-          stock: 65,
-          rating: 4.9,
-        ),
-        MenuItem(
-          id: 'paket-campur-05',
-          name: 'Paket Campur',
-          category: 'paket_campur',
-          description:
-              'Puthu, klepon, cenil dan lupis dalam satu paket.',
-          image: 'assets/images/paket_tampah.png',
-          price: 20000,
-          stock: 150,
-          rating: 5.0,
-        ),
-        MenuItem(
-          id: 'besek-hampers-06',
-          name: 'Box Besek Bambu Hampers',
-          category: 'besek',
-          description:
-              'Hampers tradisional dengan paket campur dan juruh aren.',
-          image: 'assets/images/paket_tampah.png',
-          price: 45000,
-          stock: 40,
-          rating: 5.0,
-        ),
-      ];
+      error = 'Gagal memuat menu.';
     }
 
     loading = false;
-
     notifyListeners();
   }
 
@@ -396,26 +217,17 @@ class AppState extends ChangeNotifier {
   // =========================
 
   void add(MenuItem item) {
-    final index = cart.indexWhere(
-      (x) => x.item.id == item.id,
-    );
-
+    final index = cart.indexWhere((x) => x.item.id == item.id);
     if (index >= 0) {
       cart[index].quantity++;
     } else {
-      cart.add(
-        CartItem(item: item),
-      );
+      cart.add(CartItem(item: item));
     }
-
     notifyListeners();
   }
 
   void remove(MenuItem item) {
-    final index = cart.indexWhere(
-      (x) => x.item.id == item.id,
-    );
-
+    final index = cart.indexWhere((x) => x.item.id == item.id);
     if (index < 0) return;
 
     if (cart[index].quantity > 1) {
@@ -423,16 +235,13 @@ class AppState extends ChangeNotifier {
     } else {
       cart.removeAt(index);
     }
-
     notifyListeners();
   }
 
   // =========================
-  // RIWAYAT TRANSAKSI
+  // ORDER HISTORY (via Orders UseCases)
   // =========================
 
-  // Cache lokal riwayat dipisah per user_id (bukan nomor telepon) sehingga
-  // akun baru dengan nomor yang sama tidak mewarisi riwayat akun lama.
   String get _historyKey => 'order_history_u${userId ?? 0}';
 
   void _loadHistory(SharedPreferences prefs) {
@@ -448,7 +257,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // Catat pesanan yang selesai ke daftar Riwayat Transaksi
   Future<void> recordOrderHistory({
     required String summaryItems,
     required int total,
@@ -472,16 +280,16 @@ class AppState extends ChangeNotifier {
     await _saveHistoryCache();
   }
 
-  // Ambil riwayat pesanan dari database berdasarkan user_id lalu perbarui cache.
-  // Melempar exception bila backend tidak terjangkau (UI memakai cache lama).
-  // Bila server menolak sesi (akun sudah dihapus), otomatis logout.
   Future<void> loadOrderHistory() async {
     final id = userId;
     final tk = token;
     if (id == null || tk == null) return;
 
     try {
-      orderHistory = await ApiService.getOrders(userId: id, token: tk);
+      orderHistory = await getIt<GetOrderHistory>().execute(
+        userId: id,
+        token: tk,
+      );
     } on SessionExpiredException {
       await logout();
       rethrow;
@@ -490,27 +298,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Konfirmasi pesanan selesai: ubah status di database menjadi 'Selesai'.
   Future<void> completeOrder() async {
     final id = userId;
     final tk = token;
     final orderId = ticket?['id']?.toString();
     if (id == null || tk == null || orderId == null) {
-      throw Exception('Tidak ada pesanan aktif untuk diselesaikan.');
+      throw StateError('Tidak ada pesanan aktif untuk diselesaikan.');
     }
 
     try {
-      await ApiService.completeOrder(orderId: orderId, userId: id, token: tk);
+      await getIt<CompleteOrder>().execute(
+        orderId: orderId,
+        userId: id,
+        token: tk,
+      );
     } on SessionExpiredException {
       await logout();
       rethrow;
     }
 
-    final index = orderHistory.indexWhere((o) => o['id']?.toString() == orderId);
+    final index =
+        orderHistory.indexWhere((o) => o['id']?.toString() == orderId);
     if (index >= 0) orderHistory[index]['status'] = 'Selesai';
     await _saveHistoryCache();
 
-    ticket = null; // tiket sudah selesai, tidak lagi aktif
+    ticket = null;
     notifyListeners();
   }
 
@@ -519,13 +331,11 @@ class AppState extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_historyKey, jsonEncode(orderHistory));
-    } catch (_) {
-      // Riwayat tetap tersedia di memori meskipun penyimpanan lokal gagal
-    }
+    } catch (_) {}
   }
 
   // =========================
-  // ORDER
+  // SUBMIT CHECKOUT ORDER (via Checkout UseCase)
   // =========================
 
   Future<Map<String, dynamic>> submitOrder({
@@ -534,36 +344,46 @@ class AppState extends ChangeNotifier {
     String notes = '',
     int discount = 0,
     String paymentMethod = 'cash',
+    String? promoCode,
   }) async {
     final id = userId;
     final tk = token;
     if (id == null || tk == null) {
-      throw Exception('Silakan masuk terlebih dahulu.');
+      throw StateError('Silakan masuk terlebih dahulu.');
     }
 
     final payTotal = (totalPrice - discount).clamp(0, totalPrice).toInt();
-    final summaryItems = cart.map((e) => '${e.quantity}x ${e.item.name}').join(', ');
+    final summaryItems =
+        cart.map((e) => '${e.quantity}x ${e.item.name}').join(', ');
+
+    final request = CheckoutOrderRequest(
+      userId: id,
+      token: tk,
+      pickupTime: pickupTime,
+      pickupDate: pickupDate,
+      items: cart
+          .map(
+            (e) => {
+              'menu_id': e.item.id,
+              'nama': e.item.name,
+              'quantity': e.quantity,
+              'harga': e.item.price,
+              'catatan': e.notes,
+            },
+          )
+          .toList(),
+      subtotal: totalPrice,
+      discount: discount,
+      notes: notes,
+      paymentMethod: paymentMethod,
+      promoCode: promoCode,
+    );
+
     final Map<String, dynamic> result;
     try {
-      result = await ApiService.createOrder(
-        userId: id,
-        token: tk,
-        pickupTime: pickupTime,
-        pickupDate: pickupDate,
-        items: cart
-            .map(
-              (e) => {
-                'menu_id': e.item.id,
-                'nama': e.item.name,
-                'quantity': e.quantity,
-                'harga': e.item.price,
-                'catatan': e.notes,
-              },
-            )
-            .toList(),
-        total: payTotal,
-        notes: notes,
-        paymentMethod: paymentMethod,
+      result = await getIt<CreateCheckoutOrder>().execute(
+        request: request,
+        isOperatingHours: isOperatingHours,
       );
     } on SessionExpiredException {
       await logout();
@@ -579,10 +399,10 @@ class AppState extends ChangeNotifier {
       'pickup_time': data['pickup_time'] ?? pickupTime,
       'pickup_date': data['pickup_date'] ?? pickupDate,
       'payment_method': data['payment_method'] ?? paymentMethod,
-      'summary_items': data['summary_items'] ?? (summaryItems.isNotEmpty ? summaryItems : '1x Puthu / Paket Pilihan'),
+      'summary_items': data['summary_items'] ??
+          (summaryItems.isNotEmpty ? summaryItems : '1x Puthu / Paket Pilihan'),
     };
 
-    // Simpan otomatis ke Riwayat Transaksi (sebelum keranjang dikosongkan)
     await recordOrderHistory(
       summaryItems: ticket!['summary_items'].toString(),
       total: payTotal,
@@ -594,19 +414,17 @@ class AppState extends ChangeNotifier {
 
     cart.clear();
     tab = 3;
-
     notifyListeners();
     return data;
   }
 
   // =========================
-  // RE-ORDER & INVOICE LOOKUP
+  // RE-ORDER & INVOICE LOOKUP (via Orders UseCase)
   // =========================
 
-  /// Memuat invoice tiket dari backend berdasarkan orderId lalu buka tab pesanan
   Future<void> loadInvoiceTicket(String orderId) async {
     try {
-      final inv = await ApiService.getInvoice(orderId);
+      final inv = await getIt<GetOrderInvoice>().execute(orderId);
       if (inv.isNotEmpty) {
         ticket = {
           ...inv,
@@ -619,7 +437,6 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Masukkan seluruh item dan jumlah dari pesanan lampau ke dalam keranjang belanja
   void reorderFromMap(Map<String, dynamic> order) {
     cart.clear();
     final summary = (order['summary_items'] ?? '').toString().trim();

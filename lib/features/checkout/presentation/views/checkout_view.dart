@@ -1,28 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../state/app_state.dart';
-import '../../domain/models/checkout_state.dart';
+import '../../domain/entities/checkout_entity.dart';
 import '../viewmodels/checkout_view_model.dart';
 
-class CheckoutView extends ConsumerStatefulWidget {
+class CheckoutView extends StatefulWidget {
   final AppState appState;
+  final CheckoutViewModel? viewModel;
 
-  const CheckoutView({super.key, required this.appState});
+  const CheckoutView({
+    super.key,
+    required this.appState,
+    this.viewModel,
+  });
 
   @override
-  ConsumerState<CheckoutView> createState() => _CheckoutViewState();
+  State<CheckoutView> createState() => _CheckoutViewState();
 }
 
-class _CheckoutViewState extends ConsumerState<CheckoutView> {
+class _CheckoutViewState extends State<CheckoutView> {
+  late final CheckoutViewModel _viewModel;
+  late final bool _ownsViewModel;
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _notesController = TextEditingController();
 
   static const String _couponTitle = 'Diskon Spesial VIP Member';
-  static const int _couponDiscount = 10000;
-  static const int _couponMinTotal = 50000;
+  static const int _couponDiscount = CheckoutEntity.promoDiscountAmount;
+  static const int _couponMinTotal = CheckoutEntity.promoMinTransaction;
   bool _useCoupon = false;
 
   bool get _couponEligible => widget.appState.totalPrice >= _couponMinTotal;
@@ -37,11 +45,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
+    _ownsViewModel = widget.viewModel == null;
+    _viewModel = widget.viewModel ?? getIt<CheckoutViewModel>();
+
     _nameController.text = widget.appState.userName;
     _phoneController.text = widget.appState.phone;
 
     final now = DateTime.now();
-    final months = [
+    const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
       'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
     ];
@@ -64,6 +75,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     _nameController.dispose();
     _phoneController.dispose();
     _notesController.dispose();
+    if (_ownsViewModel) {
+      _viewModel.dispose();
+    }
     super.dispose();
   }
 
@@ -163,18 +177,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       formattedNotes = formattedNotes.isNotEmpty ? '$formattedNotes | $couponNote' : couponNote;
     }
 
-    final result = await ref.read(checkoutViewModelProvider.notifier).submitCheckout(
-          appState: widget.appState,
-          notes: formattedNotes,
-          discount: _discountAmount,
-        );
+    final result = await _viewModel.submitCheckout(
+      appState: widget.appState,
+      notes: formattedNotes,
+      discount: _discountAmount,
+      promoCode: _couponApplied ? CheckoutEntity.promoCodeVip : null,
+    );
 
     if (!mounted) return;
 
-    final checkoutState = ref.read(checkoutViewModelProvider);
-
-    if (checkoutState.errorMessage != null) {
-      final msg = checkoutState.errorMessage!;
+    if (_viewModel.errorMessage != null) {
+      final msg = _viewModel.errorMessage!;
       if (msg.contains('17:30') || msg.contains('operasional') || msg.contains('jam operasional')) {
         _showOperatingHoursDialog();
       } else {
@@ -192,7 +205,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            checkoutState.paymentMethod == PaymentMethodType.cash
+            _viewModel.paymentMethod == PaymentMethodType.cash
                 ? 'Pesanan berhasil dibuat! Silakan bayar di kasir.'
                 : 'Membuka jendela pembayaran digital Midtrans...',
           ),
@@ -205,423 +218,423 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
   @override
   Widget build(BuildContext context) {
-    final checkoutState = ref.watch(checkoutViewModelProvider);
-    final viewModel = ref.read(checkoutViewModelProvider.notifier);
-
-    return Scaffold(
-      backgroundColor: brown,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Checkout & Smart Takeaway',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            Text(
-              'Jam Operasional: 17:30 - 21:30 WIB',
-              style: TextStyle(fontSize: 12, color: muted),
-            ),
-          ],
-        ),
-        backgroundColor: brown,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          children: [
-            // Banner Jam Operasional (Jika di luar jam buka)
-            if (!widget.appState.isOperatingHours)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3E1E16),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+    return ListenableBuilder(
+      listenable: _viewModel,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: brown,
+          appBar: AppBar(
+            title: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Checkout & Smart Takeaway',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.storefront_outlined, color: Colors.amberAccent, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Gerai Sedang Tutup',
-                            style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.',
-                            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Jam Operasional: 17:30 - 21:30 WIB',
+                  style: TextStyle(fontSize: 12, color: muted),
                 ),
-              ),
-
-            // 1. Informasi Gerai Pusat
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: brown2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: border),
-              ),
-              child: Row(
-                children: [
+              ],
+            ),
+            backgroundColor: brown,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              children: [
+                if (!widget.appState.isOperatingHours)
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: gold.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      color: const Color(0xFF3E1E16),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
                     ),
-                    child: const Icon(Icons.storefront, color: gold, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
+                    child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Gerai Pusat Celaket — Puthu Lanang',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Jl. Jaksa Agung Suprapto No. 73, Klojen, Kota Malang',
-                          style: TextStyle(color: muted, fontSize: 11),
+                        Icon(Icons.storefront_outlined, color: Colors.amberAccent, size: 22),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Gerai Sedang Tutup',
+                                style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Pemesanan hanya dibuka pada jam operasional Puthu Lanang pukul 17:30 – 21:30 WIB.',
+                                style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 18),
-
-            // 2. Pilih Tanggal Pengambilan
-            const Text(
-              'Tanggal Pengambilan',
-              style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: _dateOptions.map((opt) {
-                final isSelected = checkoutState.selectedDate == opt['title'];
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onTap: () => viewModel.setDate(
-                        title: opt['title']!,
-                        isoDate: opt['iso']!,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                        alignment: Alignment.center,
+                // 1. Informasi Gerai Pusat
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: brown2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isSelected ? gold : brown2,
+                          color: gold.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isSelected ? gold : border),
                         ),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            opt['title']!,
-                            style: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                        child: const Icon(Icons.storefront, color: gold, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Gerai Pusat Celaket — Puthu Lanang',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Jl. Jaksa Agung Suprapto No. 73, Klojen, Kota Malang',
+                              style: TextStyle(color: muted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                // 2. Pilih Tanggal Pengambilan
+                const Text(
+                  'Tanggal Pengambilan',
+                  style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: _dateOptions.map((opt) {
+                    final isSelected = _viewModel.selectedDate == opt['title'];
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: GestureDetector(
+                          onTap: () => _viewModel.setDate(
+                            title: opt['title']!,
+                            isoDate: opt['iso']!,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected ? gold : brown2,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: isSelected ? gold : border),
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                opt['title']!,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.black : Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 3. Slot Waktu Pengambilan (Interval 30 menit antara 17:30 - 21:30)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Slot Jam Pengambilan',
-                  style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
+                    );
+                  }).toList(),
                 ),
-                Text(
-                  'Interval 30 Menit',
+
+                const SizedBox(height: 20),
+
+                // 3. Slot Waktu Pengambilan (Interval 30 menit antara 17:30 - 21:30)
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Slot Jam Pengambilan',
+                      style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Interval 30 Menit',
+                      style: TextStyle(color: muted, fontSize: 11),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Pilih jadwal saat jajanan Puthu hangat siap diambil di kasir:',
                   style: TextStyle(color: muted, fontSize: 11),
                 ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Pilih jadwal saat jajanan Puthu hangat siap diambil di kasir:',
-              style: TextStyle(color: muted, fontSize: 11),
-            ),
-            const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 3.2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              children: CheckoutState.pickupTimeSlots.map((slot) {
-                final isSelected = checkoutState.selectedTimeSlot == slot;
-                return GestureDetector(
-                  onTap: () => viewModel.setTimeSlot(slot),
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isSelected ? green : brown2,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isSelected ? green : border),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          slot,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey[300],
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 3.2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  children: CheckoutEntity.pickupTimeSlots.map((slot) {
+                    final isSelected = _viewModel.selectedTimeSlot == slot;
+                    return GestureDetector(
+                      onTap: () => _viewModel.setTimeSlot(slot),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isSelected ? green : brown2,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: isSelected ? green : border),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              slot,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.grey[300],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 22),
-
-            // 4. METODE PEMBAYARAN
-            const Text(
-              'Metode Pembayaran',
-              style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Tersedia pembayaran di tempat atau non-tunai melalui Midtrans:',
-              style: TextStyle(color: muted, fontSize: 11),
-            ),
-            const SizedBox(height: 10),
-
-            // Pilihan Metode: Cash, QRIS, Transfer
-            _buildPaymentMethodTile(
-              type: PaymentMethodType.cash,
-              icon: Icons.payments_outlined,
-              state: checkoutState,
-              onSelect: () => viewModel.setPaymentMethod(PaymentMethodType.cash),
-            ),
-            const SizedBox(height: 8),
-            _buildPaymentMethodTile(
-              type: PaymentMethodType.qris,
-              icon: Icons.qr_code_scanner,
-              state: checkoutState,
-              onSelect: () => viewModel.setPaymentMethod(PaymentMethodType.qris),
-            ),
-            const SizedBox(height: 8),
-            _buildPaymentMethodTile(
-              type: PaymentMethodType.transfer,
-              icon: Icons.account_balance_outlined,
-              state: checkoutState,
-              onSelect: () => viewModel.setPaymentMethod(PaymentMethodType.transfer),
-            ),
-
-            const SizedBox(height: 22),
-
-            // 5. Data Pengambil Pesanan
-            const Text(
-              'Informasi Pengambil Pesanan',
-              style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _inputDecoration('Nama Lengkap Pengambil'),
-              validator: (val) =>
-                  (val == null || val.trim().isEmpty) ? 'Nama pengambil wajib diisi' : null,
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _inputDecoration('Nomor WhatsApp Pengambil (08xx)'),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Nomor WhatsApp wajib diisi';
-                }
-                if (val.trim().length < 8) {
-                  return 'Nomor WhatsApp minimal 8 digit';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: _notesController,
-              maxLines: 2,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              decoration: _inputDecoration('Catatan Khusus (cth: Gula aren dipisah, kelapa banyak)'),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 6. Kupon Diskon Spesial
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: brown2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.confirmation_num_outlined, color: gold, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          _couponTitle,
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                        Text(
-                          'Hemat ${rupiah(_couponDiscount)} (min. transaksi ${rupiah(_couponMinTotal)})',
-                          style: TextStyle(color: muted, fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: _useCoupon,
-                    activeTrackColor: gold,
-                    onChanged: _couponEligible
-                        ? (val) => setState(() => _useCoupon = val)
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 7. Rincian Pembayaran
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: brown2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Subtotal Menu (${widget.appState.cart.length} item)', style: TextStyle(color: muted, fontSize: 13)),
-                      Text(rupiah(widget.appState.totalPrice), style: const TextStyle(color: Colors.white, fontSize: 13)),
-                    ],
-                  ),
-                  if (_couponApplied) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Potongan Kupon', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
-                        Text('-${rupiah(_discountAmount)}', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 13, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                  const Divider(color: border, height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total Pembayaran', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                      Text(
-                        rupiah(_finalTotal),
-                        style: const TextStyle(color: gold, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 8. Tombol Submit Pesanan
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: (checkoutState.isProcessing || !widget.appState.isOperatingHours)
-                    ? null
-                    : _handleProcessCheckout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: green,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade800,
-                  disabledForegroundColor: Colors.white54,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                    );
+                  }).toList(),
                 ),
-                child: checkoutState.isProcessing
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : Text(
-                        !widget.appState.isOperatingHours
-                            ? 'Tutup (Buka 17:30 – 21:30 WIB)'
-                            : (checkoutState.paymentMethod == PaymentMethodType.cash
-                                ? 'Buat Pesanan (Bayar di Kasir)'
-                                : 'Lanjut ke Pembayaran Midtrans'),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-              ),
-            ),
 
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
+                const SizedBox(height: 22),
+
+                // 4. METODE PEMBAYARAN
+                const Text(
+                  'Metode Pembayaran',
+                  style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Tersedia pembayaran di tempat atau non-tunai melalui Midtrans:',
+                  style: TextStyle(color: muted, fontSize: 11),
+                ),
+                const SizedBox(height: 10),
+
+                _buildPaymentMethodTile(
+                  type: PaymentMethodType.cash,
+                  icon: Icons.payments_outlined,
+                  selectedMethod: _viewModel.paymentMethod,
+                  onSelect: () => _viewModel.setPaymentMethod(PaymentMethodType.cash),
+                ),
+                const SizedBox(height: 8),
+                _buildPaymentMethodTile(
+                  type: PaymentMethodType.qris,
+                  icon: Icons.qr_code_scanner,
+                  selectedMethod: _viewModel.paymentMethod,
+                  onSelect: () => _viewModel.setPaymentMethod(PaymentMethodType.qris),
+                ),
+                const SizedBox(height: 8),
+                _buildPaymentMethodTile(
+                  type: PaymentMethodType.transfer,
+                  icon: Icons.account_balance_outlined,
+                  selectedMethod: _viewModel.paymentMethod,
+                  onSelect: () => _viewModel.setPaymentMethod(PaymentMethodType.transfer),
+                ),
+
+                const SizedBox(height: 22),
+
+                // 5. Data Pengambil Pesanan
+                const Text(
+                  'Informasi Pengambil Pesanan',
+                  style: TextStyle(color: cream, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _nameController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: _inputDecoration('Nama Lengkap Pengambil'),
+                  validator: (val) =>
+                      (val == null || val.trim().isEmpty) ? 'Nama pengambil wajib diisi' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: _inputDecoration('Nomor WhatsApp Pengambil (08xx)'),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Nomor WhatsApp wajib diisi';
+                    }
+                    if (val.trim().length < 8) {
+                      return 'Nomor WhatsApp minimal 8 digit';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _notesController,
+                  maxLines: 2,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: _inputDecoration('Catatan Khusus (cth: Gula aren dipisah, kelapa banyak)'),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 6. Kupon Diskon Spesial
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: brown2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.confirmation_num_outlined, color: gold, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              _couponTitle,
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            Text(
+                              'Hemat ${rupiah(_couponDiscount)} (min. transaksi ${rupiah(_couponMinTotal)})',
+                              style: const TextStyle(color: muted, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _useCoupon,
+                        activeTrackColor: gold,
+                        onChanged: _couponEligible
+                            ? (val) => setState(() => _useCoupon = val)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 7. Rincian Pembayaran
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: brown2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Subtotal Menu (${widget.appState.cart.length} item)', style: const TextStyle(color: muted, fontSize: 13)),
+                          Text(rupiah(widget.appState.totalPrice), style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        ],
+                      ),
+                      if (_couponApplied) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Potongan Kupon', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
+                            Text('-${rupiah(_discountAmount)}', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 13, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ],
+                      const Divider(color: border, height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total Pembayaran', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                          Text(
+                            rupiah(_finalTotal),
+                            style: const TextStyle(color: gold, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 8. Tombol Submit Pesanan
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: (_viewModel.isProcessing || !widget.appState.isOperatingHours)
+                        ? null
+                        : _handleProcessCheckout,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade800,
+                      disabledForegroundColor: Colors.white54,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                    ),
+                    child: _viewModel.isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Text(
+                            !widget.appState.isOperatingHours
+                                ? 'Tutup (Buka 17:30 – 21:30 WIB)'
+                                : (_viewModel.paymentMethod == PaymentMethodType.cash
+                                    ? 'Buat Pesanan (Bayar di Kasir)'
+                                    : 'Lanjut ke Pembayaran Midtrans'),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildPaymentMethodTile({
     required PaymentMethodType type,
     required IconData icon,
-    required CheckoutState state,
+    required PaymentMethodType selectedMethod,
     required VoidCallback onSelect,
   }) {
-    final isSelected = state.paymentMethod == type;
+    final isSelected = selectedMethod == type;
 
     return GestureDetector(
       onTap: onSelect,
@@ -658,7 +671,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   const SizedBox(height: 2),
                   Text(
                     type.subtitle,
-                    style: TextStyle(color: muted, fontSize: 11),
+                    style: const TextStyle(color: muted, fontSize: 11),
                   ),
                 ],
               ),

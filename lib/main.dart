@@ -6,13 +6,13 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'core/di/injection.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/presentation/views/auth_view.dart';
+import 'features/menu/presentation/views/home_view.dart';
+import 'features/menu/presentation/views/menu_view.dart';
+import 'features/menu/presentation/views/story_view.dart';
+import 'features/orders/presentation/views/ticket_view.dart';
+import 'features/profile/presentation/views/profile_view.dart';
 import 'state/app_state.dart';
-import 'pages/auth_page.dart';
-import 'pages/home_page.dart';
-import 'pages/menu_page.dart';
-import 'pages/story_page.dart';
-import 'pages/ticket_page.dart';
-import 'pages/profile_page.dart';
 
 export 'core/theme/app_theme.dart';
 
@@ -121,7 +121,7 @@ class _PuthuLanangAppState extends State<PuthuLanangApp> {
                     child: CircularProgressIndicator(color: green),
                   ),
                 )
-              : (state.loggedIn ? MainShell(state: state) : AuthPage(state: state)),
+              : (state.loggedIn ? MainShell(state: state) : AuthView(state: state)),
         );
       },
     );
@@ -139,11 +139,11 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(state: state),
-      MenuPage(state: state),
-      StoryPage(state: state),
-      TicketPage(state: state),
-      ProfilePage(state: state),
+      HomeView(state: state),
+      MenuView(state: state),
+      StoryView(state: state),
+      TicketView(state: state),
+      ProfileView(state: state),
     ];
 
     return Scaffold(
@@ -158,7 +158,7 @@ class MainShell extends StatelessWidget {
           if ((i == 3 || i == 4) && !state.loggedIn) {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => AuthPage(
+                builder: (_) => AuthView(
                   state: state,
                 ),
               ),

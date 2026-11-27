@@ -1,162 +1,139 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/di/injection.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../services/location_service.dart';
-import '../../data/repositories/ai_insight_repository.dart';
-import '../../domain/models/verified_ai_insight.dart';
+import '../../data/models/verified_ai_insight_model.dart';
+import '../../domain/entities/verified_ai_insight.dart';
+import '../../domain/usecases/calculate_queue_estimate.dart';
+import '../../domain/usecases/get_latest_verified_insight.dart';
+import '../../domain/usecases/get_menu_recommendation.dart';
 
-class AiInsightState {
-  final VerifiedAiInsight? verifiedInsight;
-  final bool isLoadingGps;
-  final bool isLoadingVerified;
-  final bool isLoadingMenu;
-  final bool isPendingAudit;
-  final Map<String, dynamic>? pendingEstimate;
-  final Map<String, dynamic>? menuInsight;
-  final LocationResult? locationResult;
-  final String? gpsError;
-  final String? errorMessage;
+/// ViewModel (MVVM + ChangeNotifier) untuk fitur AI Insight.
+/// Hanya bergantung pada Use Cases di domain layer.
+class AiInsightViewModel extends ChangeNotifier {
+  final GetLatestVerifiedInsight _getLatestVerifiedInsight;
+  final CalculateQueueEstimate _calculateQueueEstimate;
+  final GetMenuRecommendation _getMenuRecommendation;
 
-  const AiInsightState({
-    this.verifiedInsight,
-    this.isLoadingGps = false,
-    this.isLoadingVerified = false,
-    this.isLoadingMenu = false,
-    this.isPendingAudit = false,
-    this.pendingEstimate,
-    this.menuInsight,
-    this.locationResult,
-    this.gpsError,
-    this.errorMessage,
-  });
+  AiInsightViewModel({
+    required GetLatestVerifiedInsight getLatestVerifiedInsight,
+    required CalculateQueueEstimate calculateQueueEstimate,
+    required GetMenuRecommendation getMenuRecommendation,
+  })  : _getLatestVerifiedInsight = getLatestVerifiedInsight,
+        _calculateQueueEstimate = calculateQueueEstimate,
+        _getMenuRecommendation = getMenuRecommendation;
 
-  AiInsightState copyWith({
-    VerifiedAiInsight? verifiedInsight,
-    bool? isLoadingGps,
-    bool? isLoadingVerified,
-    bool? isLoadingMenu,
-    bool? isPendingAudit,
-    Map<String, dynamic>? pendingEstimate,
-    Map<String, dynamic>? menuInsight,
-    LocationResult? locationResult,
-    String? gpsError,
-    String? errorMessage,
-  }) {
-    return AiInsightState(
-      verifiedInsight: verifiedInsight ?? this.verifiedInsight,
-      isLoadingGps: isLoadingGps ?? this.isLoadingGps,
-      isLoadingVerified: isLoadingVerified ?? this.isLoadingVerified,
-      isLoadingMenu: isLoadingMenu ?? this.isLoadingMenu,
-      isPendingAudit: isPendingAudit ?? this.isPendingAudit,
-      pendingEstimate: pendingEstimate ?? this.pendingEstimate,
-      menuInsight: menuInsight ?? this.menuInsight,
-      locationResult: locationResult ?? this.locationResult,
-      gpsError: gpsError ?? this.gpsError,
-      errorMessage: errorMessage,
-    );
-  }
-}
+  VerifiedAiInsight? _verifiedInsight;
+  bool _isLoadingGps = false;
+  bool _isLoadingVerified = false;
+  bool _isLoadingMenu = false;
+  bool _isPendingAudit = false;
+  Map<String, dynamic>? _pendingEstimate;
+  Map<String, dynamic>? _menuInsight;
+  LocationResult? _locationResult;
+  String? _gpsError;
+  String? _errorMessage;
 
-class AiInsightViewModel extends StateNotifier<AiInsightState> {
-  final AiInsightRepository _repository;
-
-  AiInsightViewModel(this._repository) : super(const AiInsightState());
+  VerifiedAiInsight? get verifiedInsight => _verifiedInsight;
+  bool get isLoadingGps => _isLoadingGps;
+  bool get isLoadingVerified => _isLoadingVerified;
+  bool get isLoadingMenu => _isLoadingMenu;
+  bool get isPendingAudit => _isPendingAudit;
+  Map<String, dynamic>? get pendingEstimate => _pendingEstimate;
+  Map<String, dynamic>? get menuInsight => _menuInsight;
+  LocationResult? get locationResult => _locationResult;
+  String? get gpsError => _gpsError;
+  String? get errorMessage => _errorMessage;
 
   /// 1. Mengambil data AI terkini yang HANYA berstatus 'verified' (Disetujui Manajer)
   Future<void> loadVerifiedInsight() async {
-    state = state.copyWith(isLoadingVerified: true, errorMessage: null);
+    _isLoadingVerified = true;
+    _errorMessage = null;
+    notifyListeners();
+
     try {
-      final verified = await _repository.getLatestVerifiedInsight(featureType: 'queue_estimator');
-      state = state.copyWith(
-        verifiedInsight: verified,
-        isLoadingVerified: false,
+      _verifiedInsight = await _getLatestVerifiedInsight.execute(
+        featureType: 'queue_estimator',
       );
-    } catch (e) {
-      state = state.copyWith(
-        isLoadingVerified: false,
-        errorMessage: 'Gagal memuat insight antrean tervalidasi.',
-      );
+    } on ArgumentError catch (e) {
+      _errorMessage = e.message?.toString() ?? 'Input tidak valid.';
+    } catch (_) {
+      _errorMessage = 'Gagal memuat insight antrean tervalidasi.';
+    } finally {
+      _isLoadingVerified = false;
+      notifyListeners();
     }
   }
 
-  /// 2. Deteksi GPS Hardware & Kirim Prediksi Antrean ke Server
+  /// 2. Deteksi GPS Hardware & Kirim Prediksi Antrean ke Server via UseCase
   Future<void> analyzeQueueWithGps({
     required String timeSlot,
     String? token,
     String outlet = 'Gerai Pusat Celaket',
   }) async {
-    state = state.copyWith(isLoadingGps: true, gpsError: null, errorMessage: null);
+    _isLoadingGps = true;
+    _gpsError = null;
+    _errorMessage = null;
+    notifyListeners();
 
-    LocationResult? locResult;
-    String? gpsErr;
     try {
-      locResult = await LocationService.getCurrentLocationToOutlet();
+      _locationResult = await LocationService.getCurrentLocationToOutlet();
     } catch (e) {
-      gpsErr = e.toString().replaceFirst('Exception: ', '');
+      _gpsError = e.toString().replaceFirst('Exception: ', '');
     }
-
-    state = state.copyWith(locationResult: locResult, gpsError: gpsErr);
+    notifyListeners();
 
     try {
-      final response = await _repository.calculateQueueWithGps(
+      final response = await _calculateQueueEstimate.execute(
         outlet: outlet,
         day: 'Hari Ini',
         timeSlot: timeSlot,
-        distanceKm: locResult?.distanceKm,
+        distanceKm: _locationResult?.distanceKm,
         token: token,
       );
 
       final status = response['verification_status']?.toString() ?? 'pending';
-
       if (status == 'verified') {
-        // Jika data langsung disetujui (misal simulasi manajer)
-        state = state.copyWith(
-          verifiedInsight: VerifiedAiInsight.fromJson(response),
-          isPendingAudit: false,
-          pendingEstimate: null,
-          isLoadingGps: false,
-        );
+        _verifiedInsight = VerifiedAiInsightModel.fromJson(response);
+        _isPendingAudit = false;
+        _pendingEstimate = null;
       } else {
-        // Data masih dalam antrean verifikasi Manajer di Web Admin
-        // Single Source of Truth: JANGAN ubah verifiedInsight dengan data pending!
-        state = state.copyWith(
-          isPendingAudit: true,
-          pendingEstimate: response,
-          isLoadingGps: false,
-        );
+        _isPendingAudit = true;
+        _pendingEstimate = response;
       }
-    } catch (e) {
-      state = state.copyWith(
-        isLoadingGps: false,
-        errorMessage: 'Gagal memproses perhitungan antrean AI.',
-      );
+    } on ArgumentError catch (e) {
+      _errorMessage = e.message?.toString() ?? 'Parameter antrean tidak valid.';
+    } catch (_) {
+      _errorMessage = 'Gagal memproses perhitungan antrean AI.';
+    } finally {
+      _isLoadingGps = false;
+      notifyListeners();
     }
   }
 
-  /// 3. Rekomendasi Menu AI
+  /// 3. Rekomendasi Menu AI via UseCase
   Future<void> loadMenuRecommendation({
+    String query = '',
+    int? budget,
     String preference = '',
     String? token,
   }) async {
-    state = state.copyWith(isLoadingMenu: true);
+    _isLoadingMenu = true;
+    _errorMessage = null;
+    notifyListeners();
+
     try {
-      final res = await _repository.getMenuRecommendation(
+      _menuInsight = await _getMenuRecommendation.execute(
+        query: query,
+        budget: budget,
         preference: preference,
         token: token,
       );
-      state = state.copyWith(
-        menuInsight: res,
-        isLoadingMenu: false,
-      );
+    } on ArgumentError catch (e) {
+      _errorMessage = e.message?.toString() ?? 'Permintaan rekomendasi tidak valid.';
     } catch (_) {
-      state = state.copyWith(isLoadingMenu: false);
+      _errorMessage = 'Gagal memuat rekomendasi menu AI.';
+    } finally {
+      _isLoadingMenu = false;
+      notifyListeners();
     }
   }
 }
-
-/// Riverpod StateNotifierProvider untuk AiInsightViewModel (MVVM)
-final aiInsightViewModelProvider =
-    StateNotifierProvider.autoDispose<AiInsightViewModel, AiInsightState>((ref) {
-  // Dependency Injection via get_it
-  final repo = getIt<AiInsightRepository>();
-  return AiInsightViewModel(repo);
-});
